@@ -1,0 +1,17 @@
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# .NET build output
+backend/**/bin/
+backend/**/obj/
+backend/**/.vs/
+
+# Environment / secrets
+**/appsettings.Development.json
+**/.env
+
+# Ignore data/seeder json files
+data/**/*.json
+backend/**/*.json
+backend/Kiroku.Data/Seeders/all_anime_full.json

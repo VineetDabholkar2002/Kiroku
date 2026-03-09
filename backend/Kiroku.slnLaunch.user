@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "Kiroku.API\\Kiroku.API.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "Kiroku.Data\\Kiroku.Data.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
