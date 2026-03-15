@@ -1,30 +1,41 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useSpotify } from "../context/SpotifyContext";
 
 const SpotifyCallback = () => {
   const { handleCallback } = useSpotify();
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams]     = useSearchParams();
+  const navigate           = useNavigate();
+  const calledRef          = useRef(false); // prevent StrictMode double-fire
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    const state = searchParams.get("state");
+    if (calledRef.current) return;
+    calledRef.current = true;
 
-    if (code && state) {
-      handleCallback(code, state).then(() => {
-        // Redirect to the playlist page or homepage after successful login
-        navigate("/playlist");
-      });
-    } else {
-      // Missing code/state, redirect to home or login
-      navigate("/");
+    const code  = searchParams.get("code");
+    const state = searchParams.get("state");
+    const error = searchParams.get("error");
+
+    if (error) {
+      // User denied permission or Spotify returned an error
+      navigate("/?spotify_error=" + encodeURIComponent(error));
+      return;
     }
-  }, [handleCallback, searchParams, navigate]);
+
+    if (!code || !state) {
+      navigate("/");
+      return;
+    }
+
+    handleCallback(code, state).then(() => {
+      navigate("/playlist");
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
-      <p className="text-xl">Completing Spotify login, please wait...</p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white gap-4">
+      <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+      <p className="text-xl text-gray-300">Connecting your Spotify account…</p>
     </div>
   );
 };

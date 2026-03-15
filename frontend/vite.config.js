@@ -6,11 +6,15 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
-  server: {
-		proxy: {
-			"/api": {
-				target: "http://localhost:5180",
-			},
-		},
-	},
+server: {
+    host: '127.0.0.1',
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://127.0.0.1:7171',
+        changeOrigin: true,
+        secure: false,   // allows self-signed cert in dev
+      }
+    }
+  }
 })

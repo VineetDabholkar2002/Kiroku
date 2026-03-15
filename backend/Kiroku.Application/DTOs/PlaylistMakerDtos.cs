@@ -13,7 +13,8 @@
         public string AnimeTitle { get; set; } = "";
         public string Name { get; set; } = "";
         public string Artist { get; set; } = "";
-        public string? Image { get; set; }  
+        public string? Image { get; set; }
+        public string Status { get; set; } = "";
     }
 
     // Jikan themes responses (if still needed for legacy fallback or parsing)

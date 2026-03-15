@@ -2,183 +2,142 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import Navbar from "../skeletons/Navbar";
+import { FaSearch } from "react-icons/fa";
+import { PageShell, Grid, AnimeCard, Row, Spinner, EndMsg } from "./PopularPage";
+
+const getImg = (anime) =>
+  anime?.Images?.find(i => i.Format === "jpg")?.ImageUrl ||
+  anime?.Images?.[0]?.ImageUrl || "/placeholder-anime.jpg";
 
 const SearchPage = () => {
-  const [query, setQuery] = useState("");
+  const [query, setQuery]       = useState("");
   const [animeList, setAnimeList] = useState([]);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [isEnd, setIsEnd] = useState(false);
+  const [page, setPage]         = useState(1);
+  const [loading, setLoading]   = useState(false);
+  const [isEnd, setIsEnd]       = useState(false);
   const timer = useRef(null);
 
-  const fetchSearchResults = useCallback(
-    async () => {
-      if (loading || !query.trim()) return;
-
-      try {
-        setLoading(true);
-        const response = await axios.get(`/api/v1/anime/search`, {
-          params: { query, page },
-        });
-
-        const newItems = response.data.data;
-        if (newItems.length === 0) {
-          setIsEnd(true);
-        } else {
-          setAnimeList((prev) => [...prev, ...newItems]);
-        }
-      } catch (error) {
-        console.error("Failed to fetch search results:", error);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [loading, query, page]
-  );
-
-  // Use a single useEffect for both debounce and fetching
-  useEffect(() => {
-    // Clear the previous timer
-    if (timer.current) clearTimeout(timer.current);
-
-    // If the query is empty, clear the list and exit
-    if (!query.trim()) {
-      setAnimeList([]);
+  const fetchResults = useCallback(async () => {
+    if (loading || !query.trim()) return;
+    try {
+      setLoading(true);
+      const { data } = await axios.get("/api/v1/anime/search", { params: { query, page } });
+      const items = data.data;
+      if (!items?.length) { setIsEnd(true); return; }
+      setAnimeList(prev => page === 1 ? items : [...prev, ...items]);
+    } catch (err) {
+      console.error(err);
+    } finally {
       setLoading(false);
-      return;
     }
+  }, [loading, query, page]);
 
-    // Set a new timer to fetch data after a delay
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    if (!query.trim()) { setAnimeList([]); return; }
     timer.current = setTimeout(() => {
-      // Reset state for a new search
-      setPage(1);
-      setIsEnd(false);
-      setAnimeList([]);
-      fetchSearchResults();
-    }, 500);
-
-    // Cleanup function to clear the timer
+      setPage(1); setIsEnd(false); setAnimeList([]);
+      fetchResults();
+    }, 400);
     return () => clearTimeout(timer.current);
   }, [query]);
 
-  // Fetch more results on page change (for infinite scroll)
-  useEffect(() => {
-    if (page > 1) {
-      fetchSearchResults();
-    }
-  }, [page, fetchSearchResults]);
+  useEffect(() => { if (page > 1) fetchResults(); }, [page]);
 
-  // Scroll handler for infinite scroll
   useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.scrollHeight - 100
-      ) {
-        if (!loading && !isEnd) {
-          setPage((prev) => prev + 1);
-        }
+    const onScroll = () => {
+      if (window.innerHeight + document.documentElement.scrollTop >= document.documentElement.scrollHeight - 200) {
+        if (!loading && !isEnd) setPage(p => p + 1);
       }
     };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
   }, [loading, isEnd]);
 
-  // Pick image from the Images array
-  const getImageUrl = (anime) => {
-    return (
-      anime.Images?.find((img) => img.Format === "jpg")?.ImageUrl ||
-      anime.Images?.[0]?.ImageUrl ||
-      "/placeholder-anime.jpg"
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900">
+    <PageShell>
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold gradient-text-mal mb-2">Search Anime</h1>
-          <p className="text-gray-400">Find your next favorite anime</p>
-        </div>
-        <div className="mb-8">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for anime..."
-            aria-label="Search for anime"
-            className="w-full p-4 rounded-lg bg-gray-800 text-gray-200 text-lg outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
-          />
-        </div>
+      <div className="relative max-w-7xl mx-auto px-4 py-10">
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {animeList.map((anime, index) => (
-            <Link
-              key={anime.MalId}
-              to={`/anime/${anime.MalId}`}
-              className="group animate-fadeIn"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <div className="bg-gray-800 rounded-lg overflow-hidden transition-all group-hover:scale-105 group-hover:shadow-2xl">
-                <div className="relative">
-                  <img
-                    src={getImageUrl(anime)}
-                    alt={anime.Title}
-                    className="w-full h-72 object-cover"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.currentTarget.src = "/placeholder-anime.jpg";
-                    }}
-                  />
-                  <div className="absolute top-2 right-2 bg-black/70 px-2 py-1 rounded text-xs">
-                    ⭐ {anime.Score ?? "N/A"}
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  <h3 className="font-semibold text-white line-clamp-2 mb-2 group-hover:text-cyan-400 transition-colors">
-                    {anime.Title}
-                  </h3>
-                  <div className="space-y-1 text-sm text-gray-400">
-                    <div className="flex justify-between">
-                      <span>Popularity:</span>
-                      <span className="text-orange-400">#{anime.Popularity ?? "N/A"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Members:</span>
-                      <span>{anime.Members?.toLocaleString() ?? "N/A"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Type:</span>
-                      <span>{anime.Type}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-        
-        {/* Loading indicator */}
-        {loading && (
-          <div className="flex justify-center py-8">
-            <div className="flex items-center space-x-2 text-cyan-400">
-              <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-              <span>Loading more...</span>
+        {/* Header */}
+        <div className="mb-10">
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs shadow-lg"
+              style={{ background: "linear-gradient(135deg,#3b82f6,#7c3aed)" }}>
+              <FaSearch />
             </div>
+            <span className="text-[11px] font-bold text-blue-400/80 tracking-[0.15em] uppercase">Discover</span>
+          </div>
+          <h1 className="text-4xl font-bold text-white">Search Anime</h1>
+          <p className="text-gray-600 text-sm mt-1.5">Find any anime by title</p>
+        </div>
+
+        {/* Search input */}
+        <div className="relative mb-10">
+          <div className="absolute inset-0 rounded-2xl blur-xl opacity-20"
+            style={{ background: "linear-gradient(135deg,#3b82f6,#7c3aed)" }} />
+          <div className="relative flex items-center gap-3 rounded-2xl border border-white/[0.1] bg-white/[0.05]
+            px-5 py-4 focus-within:border-blue-500/50 focus-within:bg-white/[0.07]
+            focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.1)] transition-all">
+            <FaSearch className="text-gray-500 text-sm shrink-0" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search for any anime title…"
+              autoFocus
+              className="flex-1 bg-transparent text-white text-base placeholder-gray-600 focus:outline-none"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="text-gray-600 hover:text-white transition-colors text-sm">✕</button>
+            )}
+          </div>
+        </div>
+
+        {/* Results count */}
+        {animeList.length > 0 && (
+          <p className="text-gray-600 text-xs mb-6">
+            {animeList.length} result{animeList.length !== 1 ? "s" : ""} for <span className="text-gray-400">"{query}"</span>
+          </p>
+        )}
+
+        {/* Empty state */}
+        {!query && (
+          <div className="flex flex-col items-center py-24 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mb-4">
+              <FaSearch className="text-2xl text-gray-700" />
+            </div>
+            <p className="text-gray-500 font-medium">Start typing to search</p>
+            <p className="text-gray-700 text-sm mt-1">Search across 20,000+ anime titles</p>
           </div>
         )}
 
-        {/* End indicator */}
-        {isEnd && !loading && (
-          <div className="text-center py-8">
-            <p className="text-gray-500">No more results found.</p>
+        {/* No results */}
+        {query && !loading && animeList.length === 0 && isEnd && (
+          <div className="flex flex-col items-center py-24 text-center">
+            <p className="text-gray-400 font-medium text-lg">No results for "{query}"</p>
+            <p className="text-gray-600 text-sm mt-1">Try a different search term</p>
           </div>
         )}
+
+        {/* Grid */}
+        {animeList.length > 0 && (
+          <Grid>
+            {animeList.map((anime, i) => (
+              <AnimeCard key={`${anime.MalId}-${i}`} to={`/anime/${anime.MalId}`} image={getImg(anime)} title={anime.Title} type={anime.Type}
+                badge={anime.Score ? `⭐ ${anime.Score}` : null} index={i}
+              >
+                <Row label="Popularity" value={anime.Popularity ? `#${anime.Popularity}` : "N/A"} color="text-orange-400" />
+                <Row label="Members"    value={anime.Members?.toLocaleString()} />
+              </AnimeCard>
+            ))}
+          </Grid>
+        )}
+
+        {loading && <Spinner />}
+        {isEnd && animeList.length > 0 && !loading && <EndMsg count={animeList.length} />}
       </div>
-    </div>
+    </PageShell>
   );
 };
 

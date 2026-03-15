@@ -89,7 +89,7 @@ public static class UserAndListSeeder
 
         // Step 3: Build lookup maps
         Console.WriteLine("Loading User and Anime lookups for bulk seeding UserAnimeLists...");
-        var userMap = await ctx.Users.AsNoTracking().ToDictionaryAsync(u => u.AnimeId, u => u);
+        var userMap = await ctx.Users.AsNoTracking().ToDictionaryAsync(u => u.MalUserId, u => u);
         var animeMap = await ctx.Animes.AsNoTracking().ToDictionaryAsync(a => a.MalId, a => a);
 
         // Step 4: Preload existing UserAnimeLists into a HashSet to avoid per-row DB queries

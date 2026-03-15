@@ -63,8 +63,8 @@ var app = builder.Build();
 // ]Seed database data here if needed
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await UserAndListSeeder.SeedAsync(context);
+    //var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    //await UserAndListSeeder.SeedAsync(context);
     ////await CharacterSeeder.SeedCharactersAsync(context);
 
     //var animeJsonPath = Path.Combine("C:\\Main\\Main Projects\\Kiroku\\backend\\Kiroku.Data", "Seeders", "all_anime_full.json");

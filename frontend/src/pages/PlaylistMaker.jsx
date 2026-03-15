@@ -1,277 +1,531 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import axios from "axios";
 import Navbar from "../skeletons/Navbar";
-import {
-  FaSortAlphaDown,
-  FaSortAlphaUp,
-  FaSearch,
-  FaPlay,
-} from "react-icons/fa";
+import { FaSortAlphaDown, FaSortAlphaUp, FaSearch, FaPlay, FaSpotify, FaMusic, FaPause } from "react-icons/fa";
+import { HiSparkles } from "react-icons/hi2";
 import { useSpotify } from "../context/SpotifyContext";
 
-const STATUS_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "completed", label: "Completed" },
-  { key: "plantowatch", label: "Plan to Watch" },
-  { key: "watching", label: "Watching" },
-];
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
 
-export default function PlaylistMaker() {
-  const { setPlaylist, currentTrackIndex, playTrackAtIndex } = useSpotify();
+const STATUS_FILTERS = [
+  { key: "all",         label: "All",           gradient: "from-slate-500 to-slate-600" },
+  { key: "completed",   label: "Completed",     gradient: "from-emerald-500 to-teal-600" },
+  { key: "plantowatch", label: "Plan to Watch", gradient: "from-violet-500 to-purple-600" },
+  { key: "watching",    label: "Watching",      gradient: "from-blue-500 to-cyan-600" },
+];
 
-  const [allSongs, setAllSongs] = useState([]);
-  const [displayedSongs, setDisplayedSongs] = useState([]);
-  const [inputUsername, setInputUsername] = useState("");
-  const [fetchedUsername, setFetchedUsername] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [sortBy, setSortBy] = useState("name");
-  const [error, setError] = useState(null);
+const SEARCH_MODES = [
+  { key: "both",  label: "All"   },
+  { key: "song",  label: "Song"  },
+  { key: "anime", label: "Anime" },
+];
 
-  const observerRef = useRef(null);
+const STATUS_BADGE = {
+  completed:   "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+  watching:    "bg-blue-500/20 text-blue-300 border border-blue-500/30",
+  plantowatch: "bg-violet-500/20 text-violet-300 border border-violet-500/30",
+};
 
-  // Fetch playlist from backend
-  const fetchPlaylist = useCallback(async (username) => {
-    if (!username) return;
-    setError(null);
-    setLoading(true);
-    setAllSongs([]);
-    setDisplayedSongs([]);
-    setHasMore(true);
-    setFetchedUsername("");
-    try {
-      // Fetch directly from user playlist endpoint
-      const { data } = await axios.get(`/api/v1/playlist/${username}`);
-      setAllSongs(data);
-      setDisplayedSongs(data.slice(0, PAGE_SIZE));
-      setHasMore(data.length > PAGE_SIZE);
-      setFetchedUsername(username);
-      setPlaylist(data); // store in context for player
-    } catch {
-      setError(`Failed to load playlist for "${username}".`);
-    } finally {
-      setLoading(false);
-    }
-  }, [setPlaylist]);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  // Filter + sort helper
-  const getFilteredSongs = useCallback(() => {
-    return allSongs
-      .filter((s) => {
-        const matchesSearch =
-          s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          s.anime?.toLowerCase().includes(searchQuery.toLowerCase());
-
-        const matchesStatus =
-          statusFilter === "all" ||
-          s.status?.toLowerCase() === statusFilter.toLowerCase();
-
-        return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) =>
-        sortBy === "name"
-          ? a.name.localeCompare(b.name)
-          : a.anime.localeCompare(b.anime)
-      );
-  }, [allSongs, searchQuery, sortBy, statusFilter]);
-
-  // Load next page
-  const loadMore = useCallback(() => {
-    if (loading || !hasMore || !allSongs.length) return;
-    const filtered = getFilteredSongs();
-    const nextBatch = filtered.slice(
-      displayedSongs.length,
-      displayedSongs.length + PAGE_SIZE
-    );
-    setDisplayedSongs((prev) => [...prev, ...nextBatch]);
-    setHasMore(filtered.length > displayedSongs.length + PAGE_SIZE);
-  }, [loading, hasMore, allSongs, displayedSongs, getFilteredSongs]);
-
-  // Apply filter/sort
-  useEffect(() => {
-    if (!allSongs.length) return;
-    const filtered = getFilteredSongs();
-    setDisplayedSongs(filtered.slice(0, PAGE_SIZE));
-    setHasMore(filtered.length > PAGE_SIZE);
-  }, [searchQuery, sortBy, statusFilter, allSongs, getFilteredSongs]);
-
-  // Infinite scroll effect
-  useEffect(() => {
-    const target = observerRef.current;
-    if (!target || !fetchedUsername) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) loadMore();
+function applyFiltersAndSort(songs, { searchQuery, searchMode, statusFilter, sortBy }) {
+  const q = searchQuery.toLowerCase();
+  return songs
+    .filter((s) => {
+      const matchesSearch =
+        !q ||
+        (searchMode !== "anime" && s.name?.toLowerCase().includes(q)) ||
+        (searchMode !== "song"  && s.animeTitle?.toLowerCase().includes(q));
+      const matchesStatus =
+        statusFilter === "all" ||
+        s.status?.toLowerCase().replace(/\s+/g, "") === statusFilter.toLowerCase();
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const valA = (sortBy === "name" ? a.name : a.animeTitle) ?? "";
+      const valB = (sortBy === "name" ? b.name : b.animeTitle) ?? "";
+      return valA.localeCompare(valB);
     });
-    observer.observe(target);
-    return () => {
-      if (target) observer.unobserve(target);
-    };
-  }, [loadMore, fetchedUsername]);
+}
 
-  const onSort = () => setSortBy(sortBy === "name" ? "anime" : "name");
+function statusBadgeClass(status) {
+  if (!status) return "";
+  return STATUS_BADGE[status.toLowerCase().replace(/\s+/g, "")] ?? "bg-gray-500/20 text-gray-300 border border-gray-500/30";
+}
 
-  // Fetch & play a song
-  const fetchAndPlay = async (index, song) => {
-    try {
-      const { data } = await axios.get(
-        `/api/v1/spotify/song?name=${encodeURIComponent(song.name)}&artist=${encodeURIComponent(song.artist)}`
-      );
-      if (data?.tracks?.length > 0) {
-        playTrackAtIndex(index, data.tracks[0]);
-      } else {
-        alert("Song not found on Spotify.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Spotify search failed.");
-    }
-  };
+// ─── SongCard ─────────────────────────────────────────────────────────────────
+
+const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
+  const artistLabel = Array.isArray(song.artist)
+    ? song.artist.join(", ")
+    : (song.artist ?? "Unknown Artist");
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-200">
-      <Navbar />
-      <div className="container mx-auto py-16 px-4 max-w-7xl mb-24">
+    <div
+      className={`group relative rounded-2xl overflow-hidden transition-all duration-300
+        ${isCurrent
+          ? "ring-2 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.2)] scale-[1.02]"
+          : "hover:scale-[1.03] hover:shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        }`}
+      style={{ background: "linear-gradient(160deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.018) 100%)" }}
+    >
+      <div className={`absolute inset-0 rounded-2xl border pointer-events-none transition-colors duration-300
+        ${isCurrent ? "border-emerald-400/40" : "border-white/[0.07] group-hover:border-white/[0.15]"}`}
+      />
 
-        {/* Username Input */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-end justify-between mb-12">
-          <div className="text-center sm:text-left">
-            <h1 className="text-5xl font-extrabold text-blue-400 mb-2">
-              Anime Playlist
-            </h1>
-            {fetchedUsername ? (
-              <>
-                <p className="text-lg text-gray-400">Created by {fetchedUsername}</p>
-                <p className="text-sm text-gray-500 mt-1">{allSongs.length} songs</p>
-              </>
-            ) : (
-              <p className="text-lg text-gray-400">
-                Enter a username to view their playlist
-              </p>
-            )}
+      {/* Album art */}
+      <div className="relative overflow-hidden aspect-square">
+        <img
+          src={song.image}
+          alt={song.name ?? "Song cover"}
+          loading="lazy"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+          onError={(e) => { e.currentTarget.src = "/placeholder-anime.jpg"; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+
+        {/* Now playing badge */}
+        {isCurrent && (
+          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-emerald-500 text-black text-[9px] font-black px-2 py-1 rounded-full tracking-wider">
+            <span className="flex gap-[2px] items-end" style={{height:"10px"}}>
+              {[0, 150, 75, 225].map((delay, i) => (
+                <span key={i} className="w-[2px] bg-black rounded-full animate-bounce"
+                  style={{ height: `${[40,100,60,80][i]}%`, animationDelay: `${delay}ms`, animationDuration: "0.7s" }} />
+              ))}
+            </span>
+            PLAYING
           </div>
-          <div className="mt-6 sm:mt-0 flex space-x-2 w-full md:w-auto">
-            <input
-              type="text"
-              value={inputUsername}
-              onChange={(e) => setInputUsername(e.target.value)}
-              placeholder="Enter username..."
-              className="flex-grow p-3 bg-gray-800 rounded-lg placeholder-gray-400"
-              onKeyDown={(e) => e.key === "Enter" && fetchPlaylist(inputUsername)}
-            />
-            <button
-              onClick={() => fetchPlaylist(inputUsername)}
-              disabled={loading || !inputUsername}
-              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              <FaSearch />
-            </button>
+        )}
+
+        {/* Play button */}
+        {canPlay && (
+          <button
+            onClick={onPlay}
+            aria-label={`Play ${song.name}`}
+            className={`absolute bottom-2.5 right-2.5 w-10 h-10 flex items-center justify-center rounded-full
+              bg-emerald-500 hover:bg-emerald-400 shadow-lg shadow-black/50
+              transition-all duration-200 hover:scale-110
+              ${isCurrent ? "opacity-100" : "opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0"}`}
+          >
+            {isCurrent
+              ? <FaPause className="text-black text-xs" />
+              : <FaPlay className="text-black text-xs ml-0.5" />
+            }
+          </button>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="p-3.5">
+        <h3 className="font-semibold text-white text-[13px] leading-snug truncate">{song.name}</h3>
+        <p className="text-[11px] text-gray-500 truncate mt-0.5">{artistLabel}</p>
+        {song.animeTitle && (
+          <p className="flex items-center gap-1 text-[11px] text-blue-400/75 truncate mt-1.5">
+            <HiSparkles className="shrink-0 text-[10px]" />
+            {song.animeTitle}
+          </p>
+        )}
+        {song.status && (
+          <span className={`inline-block mt-2 text-[10px] font-medium px-2 py-0.5 rounded-full ${statusBadgeClass(song.status)}`}>
+            {song.status}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// ─── SpotifyConnectBanner ─────────────────────────────────────────────────────
+
+function SpotifyConnectBanner({ onConnect }) {
+  return (
+    <div className="mb-8 relative overflow-hidden rounded-2xl border border-emerald-500/20"
+      style={{ background: "linear-gradient(135deg,rgba(16,185,129,0.07) 0%,rgba(6,182,212,0.04) 100%)" }}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(52,211,153,0.12),transparent_65%)] pointer-events-none" />
+      <div className="relative flex flex-col sm:flex-row items-center justify-between gap-5 p-6">
+        <div className="flex items-center gap-4">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
+            <FaSpotify className="text-emerald-400 text-xl" />
+          </div>
+          <div>
+            <p className="text-white font-semibold">Connect Spotify to enable playback</p>
+            <p className="text-gray-500 text-sm mt-0.5">Your account's own token is used — credentials never touch our servers.</p>
           </div>
         </div>
-
-        {error && <div className="bg-red-800 p-4 text-center mb-8">{error}</div>}
-
-        {fetchedUsername && (
-          <>
-            {/* Filter + Sort Controls */}
-            <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              {/* Search */}
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search songs or anime..."
-                className="w-full md:w-1/3 p-3 bg-gray-800 rounded-lg"
-              />
-
-              {/* Status Filters */}
-              <div className="flex space-x-2 flex-wrap">
-                {STATUS_FILTERS.map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => setStatusFilter(f.key)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition
-                      ${statusFilter === f.key ? "bg-green-500 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sorting */}
-              <button
-                onClick={onSort}
-                className="px-4 py-2 bg-gray-800 rounded-lg flex items-center space-x-2 hover:bg-gray-700"
-              >
-                <span>Sort by {sortBy === "name" ? "Name" : "Anime"}</span>
-                {sortBy === "name" ? <FaSortAlphaDown /> : <FaSortAlphaUp />}
-              </button>
-            </div>
-
-            {/* Song Cards */}
-            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {displayedSongs.map((song, index) => (
-                <SongCard
-                  key={index}
-                  song={song}
-                  index={index}
-                  isCurrent={index === currentTrackIndex}
-                  onPlay={() => fetchAndPlay(index, song)}
-                />
-              ))}
-            </div>
-
-            {loading && <div className="mt-8 text-center">Loading more...</div>}
-            {!loading && !hasMore && (
-              <div className="mt-8 text-center text-gray-500">End of playlist.</div>
-            )}
-            <div ref={observerRef} className="h-4"></div>
-          </>
-        )}
+        <button
+          onClick={onConnect}
+          className="shrink-0 flex items-center gap-2.5 px-6 py-2.5 rounded-full font-bold text-sm text-black
+            bg-emerald-400 hover:bg-emerald-300 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+        >
+          <FaSpotify />
+          Connect Spotify
+        </button>
       </div>
     </div>
   );
 }
 
-/* ---------------- SongCard ---------------- */
-function SongCard({ song, isCurrent, onPlay }) {
+// ─── SpotifyUserPill ──────────────────────────────────────────────────────────
+
+function SpotifyUserPill({ user, onDisconnect }) {
   return (
-    <div
-      className={`group relative rounded-2xl overflow-hidden shadow-lg backdrop-blur-lg border transition transform hover:scale-[1.02]
-        ${isCurrent ? "border-green-500" : "border-gray-700 hover:border-green-500"}`}
-      title={song.name}
-    >
-      {/* Album Art */}
-      <div className="relative overflow-hidden">
-        <img
-          src={song.image}
-          alt={song.name}
-          className="w-full h-56 object-cover transform group-hover:scale-110 transition duration-500"
-          onError={(e) => {
-            e.currentTarget.src = "/placeholder-anime.jpg";
-          }}
-        />
-        <button
-          onClick={onPlay}
-          className="absolute bottom-3 right-3 w-12 h-12 flex items-center justify-center rounded-full bg-green-500 shadow-lg hover:bg-green-600 opacity-0 group-hover:opacity-100 transition"
+    <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5">
+      {user?.images?.[0]?.url
+        ? <img src={user.images[0].url} alt="" className="w-5 h-5 rounded-full" />
+        : <FaSpotify className="text-emerald-400 text-xs" />
+      }
+      <span className="text-emerald-300 font-medium text-xs">{user?.display_name ?? "Connected"}</span>
+      <button onClick={onDisconnect} className="text-gray-600 hover:text-red-400 transition-colors text-xs ml-0.5" aria-label="Disconnect Spotify">✕</button>
+    </div>
+  );
+}
+
+// ─── StatsBar ─────────────────────────────────────────────────────────────────
+
+function StatsBar({ allSongs }) {
+  const stats = [
+    { label: "Total",        value: allSongs.length,                                                                                     color: "text-white" },
+    { label: "Completed",    value: allSongs.filter(s => s.status?.toLowerCase().replace(/\s+/g,"") === "completed").length,   color: "text-emerald-400" },
+    { label: "Watching",     value: allSongs.filter(s => s.status?.toLowerCase().replace(/\s+/g,"") === "watching").length,    color: "text-blue-400" },
+    { label: "Plan to watch",value: allSongs.filter(s => s.status?.toLowerCase().replace(/\s+/g,"") === "plantowatch").length, color: "text-violet-400" },
+  ];
+  return (
+    <div className="flex items-center gap-8 mb-8 pb-7 border-b border-white/[0.07] flex-wrap">
+      {stats.map(({ label, value, color }) => (
+        <div key={label}>
+          <div className={`text-2xl font-bold ${color}`}>{value}</div>
+          <div className="text-[11px] text-gray-600 mt-0.5 uppercase tracking-wider">{label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── FilterBar ────────────────────────────────────────────────────────────────
+
+function FilterBar({ searchQuery, onSearch, searchMode, onSearchMode, statusFilter, onStatus, sortBy, onSort }) {
+  const placeholder =
+    searchMode === "song"  ? "Search by song name…" :
+    searchMode === "anime" ? "Search by anime title…" :
+                             "Search songs & anime…";
+  return (
+    <div className="mb-7 space-y-3">
+      <div className="flex gap-3 flex-wrap items-center">
+        {/* Search */}
+        <div className="flex flex-1 min-w-[220px] items-center rounded-xl border border-white/[0.08] bg-white/[0.04]
+          focus-within:border-blue-500/40 focus-within:bg-white/[0.06] focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.08)]
+          transition-all duration-200 overflow-hidden">
+          <FaSearch className="ml-4 text-gray-600 text-xs shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 px-3 py-3 bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none"
+          />
+          <div className="flex border-l border-white/[0.08]">
+            {SEARCH_MODES.map((m) => (
+              <button key={m.key} onClick={() => onSearchMode(m.key)}
+                className={`px-3 py-3 text-xs font-semibold transition-all
+                  ${searchMode === m.key ? "bg-blue-600/70 text-white" : "text-gray-600 hover:text-white hover:bg-white/[0.08]"}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sort */}
+        <button onClick={onSort}
+          className="flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-semibold
+            bg-white/[0.04] border border-white/[0.08] text-gray-400
+            hover:bg-white/[0.08] hover:text-white hover:border-white/15 active:scale-95 transition-all"
         >
-          <FaPlay className="text-white text-lg ml-1" />
+          {sortBy === "name" ? <FaSortAlphaDown /> : <FaSortAlphaUp />}
+          {sortBy === "name" ? "Song" : "Anime"}
         </button>
       </div>
-      {/* Text Info */}
-      <div className="p-4">
-        <h3 className="font-bold text-white text-lg truncate">{song.name}</h3>
-        <p className="text-sm text-gray-300 truncate">
-          {Array.isArray(song.artist) ? song.artist.join(", ") : song.artist}
-        </p>
-        <p className="text-xs text-gray-400 truncate mt-1">Anime: {song.anime}</p>
-        {song.status && (
-          <span className="inline-block mt-2 text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-300">
-            {song.status}
-          </span>
+
+      {/* Status pills */}
+      <div className="flex gap-2 flex-wrap">
+        {STATUS_FILTERS.map((f) => (
+          <button key={f.key} onClick={() => onStatus(f.key)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 active:scale-95
+              ${statusFilter === f.key
+                ? `bg-gradient-to-r ${f.gradient} text-white shadow-md`
+                : "bg-white/[0.05] border border-white/[0.08] text-gray-500 hover:text-white hover:bg-white/[0.1] hover:border-white/15"
+              }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonGrid() {
+  return (
+    <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="rounded-2xl overflow-hidden border border-white/[0.06] animate-pulse">
+          <div className="aspect-square bg-white/[0.04]" />
+          <div className="p-3.5 space-y-2">
+            <div className="h-2.5 bg-white/[0.06] rounded-full w-3/4" />
+            <div className="h-2 bg-white/[0.04] rounded-full w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyHero() {
+  return (
+    <div className="flex flex-col items-center justify-center py-32 text-center">
+      <div className="relative mb-8">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500/15 to-violet-500/15 border border-white/[0.08] flex items-center justify-center">
+          <FaMusic className="text-3xl text-blue-400/50" />
+        </div>
+        <div className="absolute -inset-3 rounded-3xl bg-blue-500/5 blur-xl" />
+      </div>
+      <h2 className="text-xl font-bold text-white mb-2">Discover an Anime Playlist</h2>
+      <p className="text-gray-600 text-sm max-w-xs leading-relaxed">
+        Enter a username above to explore their full anime soundtrack collection.
+      </p>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+export default function PlaylistMaker() {
+  const {
+    setPlaylist, currentTrackIndex, playTrackAtIndex,
+    isSpotifyConnected, accessToken, spotifyUser,
+    connectSpotify, disconnectSpotify,
+  } = useSpotify();
+
+  const [allSongs, setAllSongs]               = useState([]);
+  const [displayedSongs, setDisplayedSongs]   = useState([]);
+  const [hasMore, setHasMore]                 = useState(false);
+  const [inputUsername, setInputUsername]     = useState("");
+  const [fetchedUsername, setFetchedUsername] = useState("");
+  const [searchQuery, setSearchQuery]         = useState("");
+  const [searchMode, setSearchMode]           = useState("both");
+  const [statusFilter, setStatusFilter]       = useState("all");
+  const [sortBy, setSortBy]                   = useState("name");
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState(null);
+  const observerRef = useRef(null);
+
+  const fetchPlaylist = useCallback(async (username) => {
+    const trimmed = username.trim();
+    if (!trimmed) return;
+    setError(null); setLoading(true);
+    setAllSongs([]); setDisplayedSongs([]);
+    setHasMore(false); setFetchedUsername("");
+    try {
+      const { data } = await axios.get(`/api/v1/playlist/${trimmed}`);
+      setAllSongs(data);
+      setDisplayedSongs(data.slice(0, PAGE_SIZE));
+      setHasMore(data.length > PAGE_SIZE);
+      setFetchedUsername(trimmed);
+      setPlaylist(data);
+    } catch {
+      setError(`Could not load playlist for "${trimmed}".`);
+    } finally {
+      setLoading(false);
+    }
+  }, [setPlaylist]);
+
+  useEffect(() => {
+    if (!allSongs.length) return;
+    const filtered = applyFiltersAndSort(allSongs, { searchQuery, searchMode, statusFilter, sortBy });
+    setDisplayedSongs(filtered.slice(0, PAGE_SIZE));
+    setHasMore(filtered.length > PAGE_SIZE);
+  }, [allSongs, searchQuery, searchMode, statusFilter, sortBy]);
+
+  const loadMore = useCallback(() => {
+    if (loading || !hasMore) return;
+    const filtered = applyFiltersAndSort(allSongs, { searchQuery, searchMode, statusFilter, sortBy });
+    const nextEnd = displayedSongs.length + PAGE_SIZE;
+    setDisplayedSongs(filtered.slice(0, nextEnd));
+    setHasMore(filtered.length > nextEnd);
+  }, [loading, hasMore, allSongs, searchQuery, searchMode, statusFilter, sortBy, displayedSongs.length]);
+
+  useEffect(() => {
+    const target = observerRef.current;
+    if (!target || !fetchedUsername) return;
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) loadMore(); }, { rootMargin: "300px" });
+    obs.observe(target);
+    return () => obs.unobserve(target);
+  }, [loadMore, fetchedUsername]);
+
+  const handlePlay = useCallback(async (index, song) => {
+    if (!isSpotifyConnected) { connectSpotify(); return; }
+    try {
+      const { data } = await axios.get("/api/v1/spotify/song", {
+        params: { name: song.name, artist: Array.isArray(song.artist) ? song.artist[0] : song.artist },
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (data?.tracks?.length > 0) playTrackAtIndex(index, data.tracks[0]);
+      else alert("Song not found on Spotify.");
+    } catch (err) {
+      if (err.response?.status === 401) { alert("Spotify session expired. Please reconnect."); disconnectSpotify(); }
+      else alert("Spotify search failed. Please try again.");
+    }
+  }, [isSpotifyConnected, accessToken, connectSpotify, disconnectSpotify, playTrackAtIndex]);
+
+  return (
+    <div className="min-h-screen text-gray-200 relative overflow-x-hidden" style={{ background: "#080c14" }}>
+
+      {/* Background atmosphere */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -top-32 -left-32 w-[560px] h-[560px] rounded-full opacity-100"
+          style={{ background: "radial-gradient(circle,rgba(59,130,246,0.07) 0%,transparent 70%)" }} />
+        <div className="absolute top-1/2 -right-32 w-[480px] h-[480px] rounded-full"
+          style={{ background: "radial-gradient(circle,rgba(139,92,246,0.06) 0%,transparent 70%)" }} />
+        <div className="absolute -bottom-20 left-1/4 w-[420px] h-[420px] rounded-full"
+          style={{ background: "radial-gradient(circle,rgba(16,185,129,0.04) 0%,transparent 70%)" }} />
+      </div>
+
+      <Navbar />
+
+      <div className="relative container mx-auto py-12 px-4 max-w-7xl mb-28">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-10">
+          <div>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+                <FaMusic className="text-white text-[11px]" />
+              </div>
+              <span className="text-[11px] font-bold text-blue-400/80 tracking-[0.15em] uppercase">Anime Playlist</span>
+            </div>
+            {fetchedUsername ? (
+              <>
+                <h1 className="text-4xl font-bold text-white">{fetchedUsername}'s Playlist</h1>
+                <p className="text-gray-600 text-sm mt-1.5">{allSongs.length} tracks · anime soundtracks</p>
+              </>
+            ) : (
+              <h1 className="text-4xl font-bold text-white leading-[1.15]">
+                Anime Soundtrack<br />
+                <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-blue-400 bg-clip-text text-transparent">
+                  Explorer
+                </span>
+              </h1>
+            )}
+          </div>
+
+          <div className="flex flex-col items-stretch sm:items-end gap-2.5 w-full sm:w-auto">
+            {isSpotifyConnected && (
+              <div className="self-start sm:self-end">
+                <SpotifyUserPill user={spotifyUser} onDisconnect={disconnectSpotify} />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04]
+                px-3.5 py-2.5 focus-within:border-blue-500/40 focus-within:bg-white/[0.06] transition-all min-w-[180px]">
+                <FaSearch className="text-gray-600 text-xs shrink-0" />
+                <input
+                  type="text"
+                  value={inputUsername}
+                  onChange={(e) => setInputUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && fetchPlaylist(inputUsername)}
+                  placeholder="Enter username…"
+                  className="bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none w-full"
+                />
+              </div>
+              <button
+                onClick={() => fetchPlaylist(inputUsername)}
+                disabled={loading || !inputUsername.trim()}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white
+                  bg-blue-600 hover:bg-blue-500 active:scale-95
+                  disabled:opacity-40 disabled:cursor-not-allowed
+                  transition-all shadow-lg shadow-blue-600/15"
+              >
+                {loading
+                  ? <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Loading</span>
+                  : "Search"
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Spotify banner */}
+        {!isSpotifyConnected && <SpotifyConnectBanner onConnect={connectSpotify} />}
+
+        {/* Error */}
+        {error && (
+          <div role="alert" className="mb-6 flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-300 rounded-xl px-5 py-3.5 text-sm">
+            <span>⚠</span> {error}
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading && !fetchedUsername && <SkeletonGrid />}
+
+        {/* Empty hero */}
+        {!fetchedUsername && !loading && <EmptyHero />}
+
+        {/* Playlist */}
+        {fetchedUsername && (
+          <>
+            <StatsBar allSongs={allSongs} />
+
+            <FilterBar
+              searchQuery={searchQuery} onSearch={setSearchQuery}
+              searchMode={searchMode}   onSearchMode={setSearchMode}
+              statusFilter={statusFilter} onStatus={setStatusFilter}
+              sortBy={sortBy} onSort={() => setSortBy(s => s === "name" ? "anime" : "name")}
+            />
+
+            {displayedSongs.length === 0 && !loading ? (
+              <div className="flex flex-col items-center py-20 text-center">
+                <span className="text-4xl mb-4">🎵</span>
+                <p className="text-gray-400 font-medium">No songs match your filters</p>
+                <p className="text-gray-600 text-sm mt-1">Try adjusting the search or status filter</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {displayedSongs.map((song, index) => (
+                  <SongCard
+                    key={song.id ?? `${song.name}-${index}`}
+                    song={song}
+                    index={index}
+                    isCurrent={index === currentTrackIndex}
+                    canPlay={isSpotifyConnected}
+                    onPlay={() => handlePlay(index, song)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex items-center justify-center gap-2.5 mt-10 text-gray-600 text-sm">
+                <span className="w-3.5 h-3.5 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
+                Loading more tracks…
+              </div>
+            )}
+
+            {!loading && !hasMore && displayedSongs.length > 0 && (
+              <div className="mt-14 flex flex-col items-center gap-2">
+                <div className="w-24 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent)" }} />
+                <p className="text-gray-700 text-xs">{displayedSongs.length} tracks · end of playlist</p>
+              </div>
+            )}
+
+            <div ref={observerRef} className="h-4" aria-hidden />
+          </>
         )}
       </div>
     </div>

@@ -7,7 +7,7 @@ namespace Kiroku.Domain.Entities
     {
         [Key]
         public int Id { get; set; }
-        public int AnimeId { get; set; }
+        public int MalUserId { get; set; }
 
         [Required]
         public string Username { get; set; } = string.Empty;   

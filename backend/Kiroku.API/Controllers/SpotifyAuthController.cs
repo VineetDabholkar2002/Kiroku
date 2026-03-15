@@ -1,3 +1,4 @@
+using Kiroku.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System.Text;
@@ -9,103 +10,174 @@ public class SpotifyAuthController : ControllerBase
 {
     private readonly IConfiguration _config;
     private readonly HttpClient _httpClient;
+    private readonly ICacheService _cache;
 
-    public SpotifyAuthController(IConfiguration config, IHttpClientFactory httpClientFactory)
+    private const string RefreshKeyPrefix = "spotify:refresh:";
+    private const string StateKeyPrefix = "spotify:state:";
+
+    public SpotifyAuthController(
+        IConfiguration config,
+        IHttpClientFactory httpClientFactory,
+        ICacheService cache)
     {
         _config = config;
         _httpClient = httpClientFactory.CreateClient();
+        _cache = cache;
     }
 
     [HttpGet("login")]
-    public IActionResult Login()
+    public async Task<IActionResult> Login()
     {
         var clientId = _config["Spotify:ClientId"];
-        var redirectUri = _config["Spotify:RedirectUri"]; // e.g., "http://localhost:3000/callback"
-        
-        var scope = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state";
-        var state = Guid.NewGuid().ToString();
-        
-        var authUrl = $"https://accounts.spotify.com/authorize?" +
-            $"response_type=code&client_id={clientId}&scope={Uri.EscapeDataString(scope)}&" +
-            $"redirect_uri={Uri.EscapeDataString(redirectUri)}&state={state}";
+        var redirectUri = _config["Spotify:RedirectUri"];
+
+
+        var state = Guid.NewGuid().ToString("N");
+        await _cache.SetAsync($"{StateKeyPrefix}{state}", "valid", TimeSpan.FromMinutes(10));
+
+        var scope = "streaming user-read-email user-read-private " +
+                    "user-read-playback-state user-modify-playback-state";
+
+        var authUrl =
+            $"https://accounts.spotify.com/authorize" +
+            $"?response_type=code" +
+            $"&client_id={clientId}" +
+            $"&scope={Uri.EscapeDataString(scope)}" +
+            $"&redirect_uri={Uri.EscapeDataString(redirectUri!)}" +
+            $"&state={state}";
 
         return Ok(new { authUrl, state });
     }
 
+
     [HttpPost("callback")]
     public async Task<IActionResult> Callback([FromBody] SpotifyCallbackRequest request)
     {
+        // Verify state to prevent CSRF
+        var storedState = await _cache.GetAsync<string>($"{StateKeyPrefix}{request.State}");
+        if (storedState == null)
+            return BadRequest(new { message = "Invalid or expired state parameter." });
+
+
+        await _cache.RemoveAsync($"{StateKeyPrefix}{request.State}");
+
         var clientId = _config["Spotify:ClientId"];
         var clientSecret = _config["Spotify:ClientSecret"];
         var redirectUri = _config["Spotify:RedirectUri"];
-
-        var authHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+        var authHeader = Convert.ToBase64String(
+                               Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
 
         var body = new FormUrlEncodedContent(new[]
         {
-            new KeyValuePair<string, string>("grant_type", "authorization_code"),
-            new KeyValuePair<string, string>("code", request.Code),
-            new KeyValuePair<string, string>("redirect_uri", redirectUri)
+            new KeyValuePair<string, string>("grant_type",    "authorization_code"),
+            new KeyValuePair<string, string>("code",          request.Code),
+            new KeyValuePair<string, string>("redirect_uri",  redirectUri!),
         });
 
-        _httpClient.DefaultRequestHeaders.Authorization = 
+        using var req = new HttpRequestMessage(HttpMethod.Post,
+            "https://accounts.spotify.com/api/token")
+        { Content = body };
+        req.Headers.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authHeader);
 
-        var response = await _httpClient.PostAsync("https://accounts.spotify.com/api/token", body);
+        var response = await _httpClient.SendAsync(req);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-            return BadRequest(new { message = "Failed to get access token" });
+            return BadRequest(new { message = "Failed to exchange code for token." });
 
         var tokenData = JsonSerializer.Deserialize<JsonElement>(json);
-        
+        var accessToken = tokenData.GetProperty("access_token").GetString()!;
+        var refreshToken = tokenData.GetProperty("refresh_token").GetString()!;
+        var expiresIn = tokenData.GetProperty("expires_in").GetInt32(); // seconds
+
+
+        var sessionId = Guid.NewGuid().ToString("N");
+
+        await _cache.SetAsync($"{RefreshKeyPrefix}{sessionId}", refreshToken,
+                              TimeSpan.FromDays(30));
+
+        // Return only the short-lived access token + the opaque session ID
         return Ok(new
         {
-            access_token = tokenData.GetProperty("access_token").GetString(),
-            refresh_token = tokenData.GetProperty("refresh_token").GetString(),
-            expires_in = tokenData.GetProperty("expires_in").GetInt32()
+            access_token = accessToken,
+            expires_in = expiresIn,
+            session_id = sessionId,   // frontend stores this, NOT the refresh token
         });
     }
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+    public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.SessionId))
+            return BadRequest(new { message = "session_id is required." });
+
+
+        var refreshToken = await _cache.GetAsync<string>(
+                               $"{RefreshKeyPrefix}{request.SessionId}");
+
+        if (refreshToken == null)
+            return Unauthorized(new { message = "Session expired. Please reconnect Spotify." });
+
         var clientId = _config["Spotify:ClientId"];
         var clientSecret = _config["Spotify:ClientSecret"];
-        var authHeader = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
+        var authHeader = Convert.ToBase64String(
+                               Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
 
         var body = new FormUrlEncodedContent(new[]
         {
-            new KeyValuePair<string, string>("grant_type", "refresh_token"),
-            new KeyValuePair<string, string>("refresh_token", request.RefreshToken)
+            new KeyValuePair<string, string>("grant_type",    "refresh_token"),
+            new KeyValuePair<string, string>("refresh_token", refreshToken),
         });
 
-        _httpClient.DefaultRequestHeaders.Authorization = 
+        using var req = new HttpRequestMessage(HttpMethod.Post,
+            "https://accounts.spotify.com/api/token")
+        { Content = body };
+        req.Headers.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authHeader);
 
-        var response = await _httpClient.PostAsync("https://accounts.spotify.com/api/token", body);
+        var response = await _httpClient.SendAsync(req);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-            return BadRequest(new { message = "Failed to refresh token" });
+            return BadRequest(new { message = "Failed to refresh token." });
 
         var tokenData = JsonSerializer.Deserialize<JsonElement>(json);
-        
+        var accessToken = tokenData.GetProperty("access_token").GetString()!;
+        var expiresIn = tokenData.GetProperty("expires_in").GetInt32();
+
+        // Spotify sometimes rotates the refresh token — update it in Redis if so
+        if (tokenData.TryGetProperty("refresh_token", out var newRefresh))
+        {
+            await _cache.SetAsync($"{RefreshKeyPrefix}{request.SessionId}",
+                                  newRefresh.GetString()!, TimeSpan.FromDays(30));
+        }
+
         return Ok(new
         {
-            access_token = tokenData.GetProperty("access_token").GetString(),
-            expires_in = tokenData.GetProperty("expires_in").GetInt32()
+            access_token = accessToken,
+            expires_in = expiresIn,
         });
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SessionId))
+            await _cache.RemoveAsync($"{RefreshKeyPrefix}{request.SessionId}");
+
+        return Ok(new { message = "Logged out." });
     }
 }
 
+
 public class SpotifyCallbackRequest
 {
-    public string Code { get; set; }
-    public string State { get; set; }
+    public string Code { get; set; } = "";
+    public string State { get; set; } = "";
 }
 
-public class RefreshTokenRequest
+public class RefreshRequest
 {
-    public string RefreshToken { get; set; }
+    public string SessionId { get; set; } = "";
 }

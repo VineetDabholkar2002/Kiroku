@@ -20,6 +20,7 @@ namespace Kiroku.Application.DTOs
 
     public class Entry
     {
+        [JsonProperty("mal_id")]
         public int MalId { get; set; }
         public string Title { get; set; }
         public ImageSet Images { get; set; }

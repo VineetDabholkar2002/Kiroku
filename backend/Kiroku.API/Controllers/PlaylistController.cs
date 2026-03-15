@@ -27,7 +27,8 @@ public class PlaylistController : ControllerBase
                 .ThenInclude(ual => ual.Anime)
                     .ThenInclude(a => a.Images)
             .FirstOrDefaultAsync(u => u.Username == username);
-
+        var b = _ctx.UserAnimeLists.OrderBy(a=>a.Id).Last();
+        var c = _ctx.Users.Where(u => u.Id == 98178);
         if (user == null)
             return NotFound(new { message = $"User '{username}' not found" });
 
@@ -56,9 +57,9 @@ public class PlaylistController : ControllerBase
                     AnimeTitle = anime.Title,
                     Name = match.Groups[1].Value,
                     Artist = match.Groups[2].Value.Trim(),
-                    // Get first image with format "jpg", or fallback to any, else null
                     Image = anime.Images?.FirstOrDefault(i => i.Format == "jpg")?.ImageUrl
-                          ?? anime.Images?.FirstOrDefault()?.ImageUrl
+                               ?? anime.Images?.FirstOrDefault()?.ImageUrl,
+                    Status = ual.Status ?? ""
                 });
             }
         }
