@@ -2,6 +2,8 @@ import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Navbar from "../skeletons/Navbar";
+import AnimeListStatusControl from "../components/AnimeListStatusControl";
+import { useAuth } from "../context/AuthContext";
 import {
   FaChevronLeft, FaChevronRight,
   FaPlayCircle, FaExternalLinkAlt,
@@ -106,12 +108,12 @@ const Stat = ({ label, value, color = "text-white", sub }) => (
 
 // ─── Genre tag ────────────────────────────────────────────────────────────────
 
-const GenreTag = ({ children }) => (
-  <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium
+const GenreTag = ({ to, children }) => (
+  <Link to={to} className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium
     text-gray-300 bg-white/[0.06] border border-white/[0.08]
-    hover:bg-white/[0.1] hover:text-white transition-colors cursor-default">
+    hover:bg-white/[0.1] hover:text-white transition-colors">
     {children}
-  </span>
+  </Link>
 );
 
 // ─── Info table row ───────────────────────────────────────────────────────────
@@ -246,12 +248,17 @@ const Screen = ({ children }) => (
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const VISIBLE_TAGS = 6;
+
 const AnimeDetailsPage = () => {
   const { id } = useParams();
+  const { username } = useAuth();
   const [anime, setAnime]               = useState(null);
   const [characters, setCharacters]     = useState([]);
   const [recs, setRecs]                 = useState([]);
   const [themes, setThemes]             = useState({ openings: [], endings: [] });
+  const [listEntry, setListEntry]       = useState({ status: "", score: 0 });
+  const [showAllTags, setShowAllTags]   = useState(false);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
 
@@ -294,6 +301,22 @@ const AnimeDetailsPage = () => {
     };
     run();
   }, [id]);
+
+  useEffect(() => {
+    if (!username || !id) return;
+
+    const loadListStatus = async () => {
+      try {
+        const { data } = await axios.get(`/api/v1/user/by-username/${username}/anime-list`);
+        const match = data.find((item) => String(item.animeMalId) === String(id));
+        setListEntry({ status: match?.status ?? "", score: match?.score ?? 0 });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadListStatus();
+  }, [id, username]);
 
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#080c14" }}>
@@ -406,9 +429,32 @@ const AnimeDetailsPage = () => {
                 {/* Tags */}
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {tags.slice(0, 6).map((g) => (
-                      <GenreTag key={g.malId ?? g.name}>{g.name}</GenreTag>
+                    {tags.slice(0, showAllTags ? tags.length : VISIBLE_TAGS).map((g) => (
+                      <GenreTag
+                        key={g.malId ?? g.name}
+                        to={`/tags?tagId=${g.malId}&type=${g.type}&name=${encodeURIComponent(g.name)}`}
+                      >
+                        {g.name}
+                      </GenreTag>
                     ))}
+                    {tags.length > VISIBLE_TAGS && !showAllTags && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllTags(true)}
+                        className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-gray-300 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        +{tags.length - VISIBLE_TAGS} more
+                      </button>
+                    )}
+                    {tags.length > VISIBLE_TAGS && showAllTags && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllTags(false)}
+                        className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-gray-300 transition hover:bg-white/[0.08] hover:text-white"
+                      >
+                        Show less
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -444,6 +490,15 @@ const AnimeDetailsPage = () => {
                   {anime.popularity != null && <Stat label="Popularity" value={`#${anime.popularity}`}            color="text-blue-400" />}
                   {anime.members    != null && <Stat label="Members"    value={anime.members.toLocaleString()}    />}
                   {anime.favorites  != null && <Stat label="Favourites" value={anime.favorites.toLocaleString()}  color="text-pink-400" />}
+                </div>
+
+                <div className="max-w-xs">
+                  <AnimeListStatusControl
+                    animeMalId={anime.malId ?? Number(id)}
+                    initialStatus={listEntry.status}
+                    initialScore={listEntry.score}
+                    onStatusChange={(nextStatus, data) => setListEntry((current) => ({ status: nextStatus, score: data?.score ?? current.score }))}
+                  />
                 </div>
               </div>
             </div>

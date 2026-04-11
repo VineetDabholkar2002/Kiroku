@@ -30,23 +30,23 @@ namespace Kiroku.API.Controllers
 
         [HttpGet("popular")]
         public async Task<IActionResult> GetPopularAnime(int page = 1, int per_page = 25) =>
-            await GetPagedResponse(_context.Animes.OrderBy(a => a.Popularity), page, per_page, "Anime:Popular");
+            await GetPagedResponse(_context.Animes.Where(a => a.Approved && a.Popularity != null && a.Popularity > 0).OrderBy(a => a.Popularity), page, per_page, "Anime:Popular");
 
         [HttpGet("top-rated")]
         public async Task<IActionResult> GetTopRatedAnime(int page = 1, int per_page = 25) =>
-            await GetPagedResponse(_context.Animes.Where(a => a.Score != null).OrderByDescending(a => a.Score), page, per_page, "Anime:TopRated");
+            await GetPagedResponse(_context.Animes.Where(a => a.Approved && a.Score != null && a.Rank != null && a.Rank > 0).OrderByDescending(a => a.Score), page, per_page, "Anime:TopRated");
 
         [HttpGet("airing")]
         public async Task<IActionResult> GetAiringAnime(int page = 1, int per_page = 25) =>
-            await GetPagedResponse(_context.Animes.Where(a => a.Status == "Currently Airing").OrderBy(a => a.Popularity), page, per_page, "Anime:Airing");
+            await GetPagedResponse(_context.Animes.Where(a => a.Approved && a.Status == "Currently Airing" && a.Popularity != null && a.Popularity > 0).OrderBy(a => a.Popularity), page, per_page, "Anime:Airing");
 
         [HttpGet("upcoming")]
         public async Task<IActionResult> GetUpcomingAnime(int page = 1, int per_page = 25) =>
-            await GetPagedResponse(_context.Animes.Where(a => a.Status == "Not yet aired").OrderBy(a => a.Popularity), page, per_page, "Anime:Upcoming");
+            await GetPagedResponse(_context.Animes.Where(a => a.Approved && a.Status == "Not yet aired" && a.Popularity != null && a.Popularity > 0).OrderBy(a => a.Popularity), page, per_page, "Anime:Upcoming");
 
         [HttpGet("favourites")]
         public async Task<IActionResult> GetTopFavouritedAnime(int page = 1, int per_page = 25) =>
-            await GetPagedResponse(_context.Animes.OrderByDescending(a => a.Favorites), page, per_page, "Anime:Favourites");
+            await GetPagedResponse(_context.Animes.Where(a => a.Approved).OrderByDescending(a => a.Favorites), page, per_page, "Anime:Favourites");
 
         [HttpGet("search")]
         public async Task<IActionResult> SearchAnime(string query, int page = 1, int per_page = 25)
@@ -55,6 +55,7 @@ namespace Kiroku.API.Controllers
                 return BadRequest(new { message = "Query cannot be empty" });
 
             var searchQuery = _context.Animes
+                .Where(a => a.Approved && a.Popularity != null && a.Popularity > 0)
                 .Where(a => EF.Functions.ILike(a.Title, $"%{query}%")
                          || EF.Functions.ILike(a.TitleEnglish, $"%{query}%")
                          || EF.Functions.ILike(a.TitleJapanese, $"%{query}%"))
@@ -67,6 +68,7 @@ namespace Kiroku.API.Controllers
         public async Task<IActionResult> GetAnimeByGenre(int genreId, int page = 1, int per_page = 25)
         {
             var query = _context.Animes
+                .Where(a => a.Approved && a.Popularity != null && a.Popularity > 0)
                 .Where(a => a.AnimeGenres.Any(ag => ag.Genre.MalId == genreId))
                 .OrderBy(a => a.Popularity);
 
@@ -77,10 +79,35 @@ namespace Kiroku.API.Controllers
         public async Task<IActionResult> GetAnimeByStudio(int studioId, int page = 1, int per_page = 25)
         {
             var query = _context.Animes
+                .Where(a => a.Approved && a.Popularity != null && a.Popularity > 0)
                 .Where(a => a.AnimeStudios.Any(asd => asd.Studio.MalId == studioId))
                 .OrderBy(a => a.Popularity);
 
             return await GetPagedResponse(query, page, per_page, $"Anime:Studio:{studioId}");
+        }
+
+        [HttpGet("tags")]
+        public async Task<IActionResult> GetTags(string? type = null, int limit = 100)
+        {
+            if (limit < 1) limit = 25;
+            if (limit > 300) limit = 300;
+
+            var query = _context.Genres
+                .AsNoTracking()
+                .Where(g => string.IsNullOrWhiteSpace(type) || g.Type == type)
+                .Select(g => new
+                {
+                    malId = g.MalId,
+                    name = g.Name,
+                    type = g.Type,
+                    animeCount = g.AnimeGenres.Count(ag => ag.Anime.Approved && ag.Anime.Popularity != null && ag.Anime.Popularity > 0)
+                })
+                .Where(g => g.animeCount > 0)
+                .OrderByDescending(g => g.animeCount)
+                .ThenBy(g => g.name)
+                .Take(limit);
+
+            return Ok(await query.ToListAsync());
         }
 
         // ---- "Detail page" endpoint: LOAD MAIN FIELDS THEN JOIN COLLECTIONS SEPARATELY ----

@@ -15,6 +15,32 @@ public class PlaylistController : ControllerBase
         _ctx = ctx;
     }
 
+    [HttpGet("suggest-users")]
+    public async Task<IActionResult> SuggestUsers(string query, int limit = 6)
+    {
+        var trimmed = query?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return Ok(Array.Empty<object>());
+
+        if (limit < 1) limit = 6;
+        if (limit > 10) limit = 10;
+
+        var users = await _ctx.Users
+            .AsNoTracking()
+            .Where(u => u.AnimeList.Any() && EF.Functions.ILike(u.Username, $"{trimmed}%"))
+            .OrderBy(u => u.Username)
+            .Select(u => new
+            {
+                id = u.Id,
+                username = u.Username,
+                profilePicture = u.ProfilePicture
+            })
+            .Take(limit)
+            .ToListAsync();
+
+        return Ok(users);
+    }
+
     [HttpGet("{username}")]
     public async Task<IActionResult> GetPlaylist(string username)
     {

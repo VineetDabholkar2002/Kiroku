@@ -18,74 +18,74 @@ public static class UserAndListSeeder
         var usersFile = Path.Combine(dataDir, "users.csv");
         var usersDir = Path.Combine(dataDir, "users");
 
-        //// Step 1: Load existing MAL IDs from DB to skip already-seeded users
-        //var existingMalIds = await ctx.Users.Select(u => u.AnimeId).ToHashSetAsync();
+        // Step 1: Load existing MAL IDs from DB to skip already-seeded users
+        var existingMalIds = await ctx.Users.Select(u => u.MalUserId).ToHashSetAsync();
 
-        //// Step 2: Seed users (skip already existing)
-        //if (File.Exists(usersFile))
-        //{
-        //    Console.WriteLine("Seeding users from users.csv...");
-        //    var userLines = File.ReadLines(usersFile)
-        //                        .Skip(1)
-        //                        .Where(line => !string.IsNullOrWhiteSpace(line));
+        // Step 2: Seed users (skip already existing)
+        if (File.Exists(usersFile))
+        {
+            Console.WriteLine("Seeding users from users.csv...");
+            var userLines = File.ReadLines(usersFile)
+                                .Skip(1)
+                                .Where(line => !string.IsNullOrWhiteSpace(line));
 
-        //    var newUsers = new List<User>();
+            var newUsers = new List<User>();
 
-        //    foreach (var line in userLines)
-        //    {
-        //        var parts = line.Split(',');
-        //        if (parts.Length < 2)
-        //        {
-        //            Console.WriteLine($"Skipping malformed user line: {line}");
-        //            continue;
-        //        }
+            foreach (var line in userLines)
+            {
+                var parts = line.Split(',');
+                if (parts.Length < 2)
+                {
+                    Console.WriteLine($"Skipping malformed user line: {line}");
+                    continue;
+                }
 
-        //        if (!int.TryParse(parts[0], out int userMalId))
-        //        {
-        //            Console.WriteLine($"Invalid MAL ID in line: {line}");
-        //            continue;
-        //        }
+                if (!int.TryParse(parts[0], out int userMalId))
+                {
+                    Console.WriteLine($"Invalid MAL ID in line: {line}");
+                    continue;
+                }
 
-        //        var username = parts[1].Trim();
-        //        if (string.IsNullOrEmpty(username))
-        //        {
-        //            Console.WriteLine($"Empty username in line: {line}");
-        //            continue;
-        //        }
+                var username = parts[1].Trim();
+                if (string.IsNullOrEmpty(username))
+                {
+                    Console.WriteLine($"Empty username in line: {line}");
+                    continue;
+                }
 
-        //        // Skip if already in DB or already queued
-        //        if (existingMalIds.Contains(userMalId))
-        //            continue;
+                // Skip if already in DB or already queued
+                if (existingMalIds.Contains(userMalId))
+                    continue;
 
-        //        existingMalIds.Add(userMalId);
+                existingMalIds.Add(userMalId);
 
-        //        newUsers.Add(new User
-        //        {
-        //            AnimeId = userMalId,
-        //            Username = username,
-        //            Password = "Pass@1234",
-        //            Email = $"{username}@kiroku.com"
-        //        });
+                newUsers.Add(new User
+                {
+                    MalUserId = userMalId,
+                    Username = username,
+                    Password = "Pass@1234",
+                    Email = $"{username}@kiroku.com"
+                });
 
-        //        if (newUsers.Count >= BatchSize)
-        //        {
-        //            ctx.Users.AddRange(newUsers);
-        //            await ctx.SaveChangesAsync();
-        //            newUsers.Clear();
-        //        }
-        //    }
+                if (newUsers.Count >= BatchSize)
+                {
+                    ctx.Users.AddRange(newUsers);
+                    await ctx.SaveChangesAsync();
+                    newUsers.Clear();
+                }
+            }
 
-        //    if (newUsers.Count > 0)
-        //    {
-        //        ctx.Users.AddRange(newUsers);
-        //        await ctx.SaveChangesAsync();
-        //    }
-        //}
-        //else
-        //{
-        //    Console.WriteLine($"Users file not found at {usersFile} - skipping user seeding.");
-        //    return;
-        //}
+            if (newUsers.Count > 0)
+            {
+                ctx.Users.AddRange(newUsers);
+                await ctx.SaveChangesAsync();
+            }
+        }
+        else
+        {
+            Console.WriteLine($"Users file not found at {usersFile} - skipping user seeding.");
+            return;
+        }
 
         // Step 3: Build lookup maps
         Console.WriteLine("Loading User and Anime lookups for bulk seeding UserAnimeLists...");
@@ -174,7 +174,7 @@ public static class UserAndListSeeder
                     Score = score,
                     Status = status
                 });
-
+                Console.WriteLine($"Added {userEntity.Username}");
                 if (userAnimeLists.Count >= BatchSize)
                 {
                     ctx.UserAnimeLists.AddRange(userAnimeLists);

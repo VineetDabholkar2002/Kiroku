@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useContext, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaSpinner, FaEye, FaEyeSlash } from "react-icons/fa";
 import { HiSparkles } from "react-icons/hi2";
+import { AuthContext } from "../context/AuthContext";
 
 const LoginPage = () => {
   const [username, setUsername]     = useState("");
@@ -10,7 +11,10 @@ const LoginPage = () => {
   const [showPass, setShowPass]     = useState(false);
   const [error, setError]           = useState(null);
   const [loading, setLoading]       = useState(false);
+  const { login }                   = useContext(AuthContext);
   const navigate                    = useNavigate();
+  const location                    = useLocation();
+  const redirectTo                  = location.state?.from || "/popular";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,12 +22,26 @@ const LoginPage = () => {
     setLoading(true);
     try {
       const { data } = await axios.post("/api/v1/user/login", { username, password });
-      localStorage.setItem("authToken", data.token);
-      localStorage.setItem("username", data.user.username);
-      axios.defaults.headers.common["Authorization"] = `Bearer ${data.token}`;
-      navigate("/playlist");
+      const resolvedUsername = data?.user?.username ?? data?.username;
+      const token = data?.token;
+
+      if (!resolvedUsername) {
+        throw new Error("Login response did not include a username.");
+      }
+
+      localStorage.setItem("username", resolvedUsername);
+      if (token) {
+        localStorage.setItem("authToken", token);
+        axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      } else {
+        localStorage.removeItem("authToken");
+        delete axios.defaults.headers.common["Authorization"];
+      }
+
+      login(resolvedUsername);
+      navigate(redirectTo, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid username or password.");
+      setError(err.response?.data?.message || err.message || "Invalid username or password.");
     } finally {
       setLoading(false);
     }
@@ -229,19 +247,8 @@ const LoginPage = () => {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-white/[0.06]" />
-            <span className="text-xs text-gray-700">or</span>
-            <div className="flex-1 h-px bg-white/[0.06]" />
-          </div>
-
-          {/* Register link */}
-          <p className="text-center text-gray-600 text-sm">
-            Don't have an account?{" "}
-            <Link to="/register" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-              Create one
-            </Link>
+          <p className="mt-6 text-center text-gray-600 text-sm">
+            Sign in to unlock search, playlists, chat, and the rest of the app.
           </p>
         </div>
       </div>

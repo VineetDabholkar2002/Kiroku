@@ -61,6 +61,59 @@ namespace Kiroku.API.Controllers
             return Ok(animeList);
         }
 
+        [HttpGet("by-username/{username}")]
+        public async Task<IActionResult> GetUserProfileByUsername(string username)
+        {
+            var user = await _userService.GetUserByUsername(username);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            var profile = new UserProfileDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                ProfilePicture = user.ProfilePicture
+            };
+
+            return Ok(profile);
+        }
+
+        [HttpGet("by-username/{username}/anime-list")]
+        public async Task<IActionResult> GetUserAnimeListByUsername(string username)
+        {
+            var animeList = await _userService.GetUserAnimeListByUsername(username);
+            if (animeList == null) return NotFound(new { message = "User not found" });
+            return Ok(animeList);
+        }
+
+        [HttpPut("by-username/{username}/anime-list")]
+        public async Task<IActionResult> UpsertUserAnimeListItem(string username, [FromBody] UpdateUserAnimeListRequest request)
+        {
+            if (request.AnimeMalId <= 0 || string.IsNullOrWhiteSpace(request.Status))
+                return BadRequest(new { message = "animeMalId and status are required." });
+
+            try
+            {
+                var updated = await _userService.UpsertUserAnimeListItem(username, request.AnimeMalId, request.Status, request.Score);
+                if (updated == null)
+                    return NotFound(new { message = "User or anime not found." });
+
+                return Ok(updated);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpGet("by-username/{username}/recommendations")]
+        public async Task<IActionResult> GetUserRecommendations(string username)
+        {
+            var recommendations = await _userService.GetUserRecommendations(username);
+            if (recommendations == null) return NotFound(new { message = "User not found" });
+            return Ok(recommendations);
+        }
+
         // Get a user's playlist by username
         [HttpGet("{username}/playlist")]
         public async Task<IActionResult> GetUserPlaylist(string username)
@@ -86,5 +139,12 @@ namespace Kiroku.API.Controllers
         public string Username { get; set; } = "";
         public string Email { get; set; } = "";
         public string? ProfilePicture { get; set; }
+    }
+
+    public class UpdateUserAnimeListRequest
+    {
+        public int AnimeMalId { get; set; }
+        public string Status { get; set; } = "";
+        public int Score { get; set; }
     }
 }

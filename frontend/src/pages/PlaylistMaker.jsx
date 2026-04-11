@@ -317,14 +317,20 @@ export default function PlaylistMaker() {
   const [displayedSongs, setDisplayedSongs]   = useState([]);
   const [hasMore, setHasMore]                 = useState(false);
   const [inputUsername, setInputUsername]     = useState("");
+  const [userSuggestions, setUserSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [fetchedUsername, setFetchedUsername] = useState("");
   const [searchQuery, setSearchQuery]         = useState("");
   const [searchMode, setSearchMode]           = useState("both");
   const [statusFilter, setStatusFilter]       = useState("all");
   const [sortBy, setSortBy]                   = useState("name");
+  const [savingPlaylist, setSavingPlaylist]   = useState(false);
+  const [playlistSaveMessage, setPlaylistSaveMessage] = useState(null);
+  const [saveProgress, setSaveProgress]       = useState(null);
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState(null);
   const observerRef = useRef(null);
+  const suggestionBoxRef = useRef(null);
 
   const fetchPlaylist = useCallback(async (username) => {
     const trimmed = username.trim();
@@ -332,6 +338,9 @@ export default function PlaylistMaker() {
     setError(null); setLoading(true);
     setAllSongs([]); setDisplayedSongs([]);
     setHasMore(false); setFetchedUsername("");
+    setPlaylistSaveMessage(null);
+    setSaveProgress(null);
+    setShowSuggestions(false);
     try {
       const { data } = await axios.get(`/api/v1/playlist/${trimmed}`);
       setAllSongs(data);
@@ -345,6 +354,42 @@ export default function PlaylistMaker() {
       setLoading(false);
     }
   }, [setPlaylist]);
+
+  useEffect(() => {
+    const trimmed = inputUsername.trim();
+    if (!trimmed) {
+      setUserSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await axios.get("/api/v1/playlist/suggest-users", {
+          params: { query: trimmed, limit: 6 }
+        });
+        setUserSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      } catch (err) {
+        console.error(err);
+        setUserSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [inputUsername]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!suggestionBoxRef.current?.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (!allSongs.length) return;
@@ -383,6 +428,129 @@ export default function PlaylistMaker() {
       else alert("Spotify search failed. Please try again.");
     }
   }, [isSpotifyConnected, accessToken, connectSpotify, disconnectSpotify, playTrackAtIndex]);
+
+  const handleSaveToSpotify = useCallback(async () => {
+    if (!fetchedUsername || allSongs.length === 0 || savingPlaylist) return;
+    if (!isSpotifyConnected) {
+      connectSpotify();
+      return;
+    }
+
+    setSavingPlaylist(true);
+    setPlaylistSaveMessage(null);
+    setSaveProgress({ percent: 0, message: "Creating Spotify playlist..." });
+
+    try {
+      const response = await fetch("/api/v1/spotify/playlist-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name: `${fetchedUsername}'s Anime Playlist`,
+          description: `Created by Kiroku from ${fetchedUsername}'s anime soundtrack results.`,
+          songs: allSongs.map((song) => ({
+            animeTitle: song.animeTitle ?? "",
+            name: song.name ?? "",
+            artist: Array.isArray(song.artist) ? song.artist[0] ?? "" : (song.artist ?? ""),
+            image: song.image ?? null,
+            status: song.status ?? "",
+          })),
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("Could not start playlist save.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = false;
+
+      while (!completed) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
+        for (const rawEvent of events) {
+          const lines = rawEvent.split("\n");
+          const eventName = lines.find((line) => line.startsWith("event:"))?.slice(6).trim();
+          const dataLine = lines.find((line) => line.startsWith("data:"))?.slice(5).trim();
+          if (!eventName || !dataLine) continue;
+
+          const payload = JSON.parse(dataLine);
+
+          if (eventName === "progress") {
+            setSaveProgress({
+              percent: payload.percent ?? 0,
+              message: payload.message ?? "Saving playlist...",
+            });
+          }
+
+          if (eventName === "complete") {
+            setSaveProgress({
+              percent: 100,
+              message: payload.message ?? "Playlist created on Spotify.",
+            });
+            setPlaylistSaveMessage({
+              type: "success",
+              text: payload?.playlistUrl
+                ? `Saved ${payload.addedCount ?? 0} tracks to Spotify.`
+                : payload?.message ?? "Playlist created on Spotify.",
+              playlistUrl: payload?.playlistUrl ?? null,
+            });
+            completed = true;
+            break;
+          }
+
+          if (eventName === "error") {
+            if (payload?.status === 401) {
+              disconnectSpotify();
+            }
+            setPlaylistSaveMessage({
+              type: "error",
+              text: payload?.message ?? "Could not save the playlist to Spotify.",
+              playlistUrl: null,
+            });
+            setSaveProgress(null);
+            completed = true;
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      if (err.response?.status === 401) {
+        setPlaylistSaveMessage({
+          type: "error",
+          text: "Spotify session expired. Reconnect and try again.",
+          playlistUrl: null,
+        });
+        disconnectSpotify();
+      } else {
+        setPlaylistSaveMessage({
+          type: "error",
+          text: err.response?.data?.message ?? err.message ?? "Could not save the playlist to Spotify.",
+          playlistUrl: null,
+        });
+      }
+      setSaveProgress(null);
+    } finally {
+      setSavingPlaylist(false);
+    }
+  }, [
+    accessToken,
+    allSongs,
+    connectSpotify,
+    disconnectSpotify,
+    fetchedUsername,
+    isSpotifyConnected,
+    savingPlaylist,
+  ]);
 
   return (
     <div className="min-h-screen text-gray-200 relative overflow-x-hidden" style={{ background: "#080c14" }}>
@@ -427,8 +595,19 @@ export default function PlaylistMaker() {
 
           <div className="flex flex-col items-stretch sm:items-end gap-2.5 w-full sm:w-auto">
             {isSpotifyConnected && (
-              <div className="self-start sm:self-end">
+              <div className="self-start sm:self-end flex items-center gap-2">
                 <SpotifyUserPill user={spotifyUser} onDisconnect={disconnectSpotify} />
+                {fetchedUsername && allSongs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSaveToSpotify}
+                    disabled={savingPlaylist}
+                    className="flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FaSpotify className="text-sm" />
+                    {savingPlaylist ? "Saving..." : "Save to Spotify"}
+                  </button>
+                )}
               </div>
             )}
             <div className="flex gap-2">
@@ -439,6 +618,9 @@ export default function PlaylistMaker() {
                   type="text"
                   value={inputUsername}
                   onChange={(e) => setInputUsername(e.target.value)}
+                  onFocus={() => {
+                    if (userSuggestions.length) setShowSuggestions(true);
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && fetchPlaylist(inputUsername)}
                   placeholder="Enter username…"
                   className="bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none w-full"
@@ -458,6 +640,72 @@ export default function PlaylistMaker() {
                 }
               </button>
             </div>
+            {showSuggestions && userSuggestions.length > 0 && (
+              <div ref={suggestionBoxRef} className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0c121d] shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+                {userSuggestions.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => {
+                      setInputUsername(user.username);
+                      fetchPlaylist(user.username);
+                    }}
+                    className="flex w-full items-center gap-3 border-b border-white/[0.06] px-4 py-3 text-left transition hover:bg-white/[0.05] last:border-b-0"
+                  >
+                    {user.profilePicture ? (
+                      <img
+                        src={user.profilePicture}
+                        alt={user.username}
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/15 text-xs font-bold text-blue-300">
+                        {user.username.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-white">{user.username}</p>
+                      <p className="text-[11px] text-gray-500">Has anime playlist data</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {playlistSaveMessage && (
+              <div
+                className={`rounded-xl border px-4 py-3 text-sm ${
+                  playlistSaveMessage.type === "success"
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                    : "border-red-500/20 bg-red-500/10 text-red-200"
+                }`}
+              >
+                <span>{playlistSaveMessage.text}</span>
+                {playlistSaveMessage.playlistUrl && (
+                  <a
+                    href={playlistSaveMessage.playlistUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-2 font-medium text-white underline underline-offset-2"
+                  >
+                    Open playlist
+                  </a>
+                )}
+              </div>
+            )}
+            {savingPlaylist && saveProgress && (
+              <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
+                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="text-blue-100">{saveProgress.message}</span>
+                  <span className="text-blue-200">{Math.max(0, Math.min(100, saveProgress.percent))}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-blue-500 transition-all duration-300"
+                    style={{ width: `${Math.max(0, Math.min(100, saveProgress.percent))}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

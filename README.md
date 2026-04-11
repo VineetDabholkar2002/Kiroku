@@ -109,6 +109,23 @@ Kiroku/
    ```
    The API will be available at `https://127.0.0.1:7171` with Swagger UI at the root.
 
+5. **Run the chat service (optional, for the Chat page):**
+   ```bash
+   cd backend/Kiroku.Chat
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements.txt
+   uvicorn app:app --host 127.0.0.1 --port 8000 --reload
+   ```
+   The FastAPI chat service will be available at `http://127.0.0.1:8000`.
+
+6. **Auto-start Ollama + model + Redis:**
+   ```bash
+   npm run services
+   ```
+   This starts `ollama serve` if needed, pulls `llama3.1:8b` if it is missing, and starts Redis on port `6379`.
+   If `redis-server` is not installed locally, the script falls back to a Docker container named `kiroku-redis`.
+
 ---
 
 ### Frontend Setup
@@ -130,6 +147,11 @@ Kiroku/
            target: 'https://127.0.0.1:7171',
            changeOrigin: true,
            secure: false,
+         },
+         '/chat-api': {
+           target: 'http://127.0.0.1:8000',
+           changeOrigin: true,
+           rewrite: (path) => path.replace(/^\/chat-api/, ''),
          }
        }
      }
@@ -179,6 +201,8 @@ This means Spotify API rate limits are per-user, not per-app, and the app scales
 | `POST` | `/api/v1/spotifyauth/callback` | Exchange code for token |
 | `POST` | `/api/v1/spotifyauth/refresh` | Refresh access token |
 | `POST` | `/api/v1/spotifyauth/logout` | Revoke session |
+| `POST` | `/chat` | Stream anime-only chat replies from the FastAPI chat service |
+| `GET` | `/health` | Health check for the FastAPI chat service |
 
 ---
 

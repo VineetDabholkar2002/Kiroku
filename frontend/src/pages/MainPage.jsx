@@ -50,10 +50,16 @@ const MainPage = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link to="/popular"
+            <Link to="/login"
               className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-full font-bold text-sm text-white
                 shadow-lg shadow-blue-600/25 active:scale-95 transition-all"
               style={{ background: "linear-gradient(135deg,#3b82f6,#7c3aed)" }}
+            >
+              Login
+            </Link>
+            <Link to="/popular"
+              className="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-full font-bold text-sm text-white
+                bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 transition-all"
             >
               <FaFire /> Explore Popular
             </Link>

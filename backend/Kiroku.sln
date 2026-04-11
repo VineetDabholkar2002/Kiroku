@@ -18,6 +18,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Kiroku.Chat", "Kiroku.Chat", "{B7A8EC08-F6B8-47BE-AC03-B80BA03D1429}"
+	ProjectSection(SolutionItems) = preProject
+		Kiroku.Chat\app.py = Kiroku.Chat\app.py
+		Kiroku.Chat\requirements.txt = Kiroku.Chat\requirements.txt
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

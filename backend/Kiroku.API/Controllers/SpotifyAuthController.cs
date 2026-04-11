@@ -1,4 +1,4 @@
-using Kiroku.Application.Services;
+﻿using Kiroku.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using System.Text;
@@ -36,7 +36,8 @@ public class SpotifyAuthController : ControllerBase
         await _cache.SetAsync($"{StateKeyPrefix}{state}", "valid", TimeSpan.FromMinutes(10));
 
         var scope = "streaming user-read-email user-read-private " +
-                    "user-read-playback-state user-modify-playback-state";
+                    "user-read-playback-state user-modify-playback-state " +
+                    "playlist-modify-public playlist-modify-private";
 
         var authUrl =
             $"https://accounts.spotify.com/authorize" +
@@ -146,7 +147,7 @@ public class SpotifyAuthController : ControllerBase
         var accessToken = tokenData.GetProperty("access_token").GetString()!;
         var expiresIn = tokenData.GetProperty("expires_in").GetInt32();
 
-        // Spotify sometimes rotates the refresh token � update it in Redis if so
+        // Spotify sometimes rotates the refresh token — update it in Redis if so
         if (tokenData.TryGetProperty("refresh_token", out var newRefresh))
         {
             await _cache.SetAsync($"{RefreshKeyPrefix}{request.SessionId}",
