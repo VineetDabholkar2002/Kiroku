@@ -16,9 +16,12 @@
         public string? AnimeImageUrl { get; set; }
         public string? AnimeType { get; set; }
         public double? AnimeScore { get; set; }
+        public int? Episodes { get; set; }
+        public string? Duration { get; set; }
         public string Status { get; set; } = "Plan to Watch";
         public int Score { get; set; } = 0;
         public List<UserAnimeTagDto> Tags { get; set; } = new();
+        public List<string> Studios { get; set; } = new();
     }
 
     public class UserAnimeTagDto

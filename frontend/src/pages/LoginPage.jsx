@@ -50,27 +50,22 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen flex" style={{ background: "#080c14" }}>
 
-      {/* ── Left decorative panel ──────────────────────────────────────────── */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden flex-col justify-between p-12">
 
-        {/* Background gradient mesh */}
         <div className="absolute inset-0" style={{
           background: "linear-gradient(135deg, #0d1526 0%, #080c14 50%, #0a0f1e 100%)"
         }} />
 
-        {/* Glow orbs */}
         <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full blur-[120px] opacity-30"
           style={{ background: "radial-gradient(circle, #3b82f6 0%, transparent 70%)" }} />
         <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] rounded-full blur-[100px] opacity-20"
           style={{ background: "radial-gradient(circle, #7c3aed 0%, transparent 70%)" }} />
 
-        {/* Decorative dot grid */}
         <div className="absolute inset-0 opacity-[0.04]" style={{
           backgroundImage: "radial-gradient(rgba(255,255,255,0.8) 1px, transparent 1px)",
           backgroundSize: "32px 32px"
         }} />
 
-        {/* Floating anime cards */}
         <div className="absolute inset-0 pointer-events-none">
           {[
             { top: "12%",  left: "8%",   rotate: "-8deg",  w: "80px",  h: "112px", delay: "0s",    bg: "rgba(59,130,246,0.15)"  },
@@ -91,7 +86,6 @@ const LoginPage = () => {
           ))}
         </div>
 
-        {/* Content */}
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30"
@@ -117,7 +111,7 @@ const LoginPage = () => {
             </span>
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed max-w-xs">
-            Manage your anime list, discover soundtracks, and build playlists — all in one place.
+            Manage your anime list, discover soundtracks, and build playlists â€” all in one place.
           </p>
         </div>
 
@@ -135,10 +129,8 @@ const LoginPage = () => {
         </div>
       </div>
 
-      {/* ── Right form panel ───────────────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative">
 
-        {/* Subtle background for right side */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/3 right-1/4 w-[300px] h-[300px] rounded-full blur-[100px] opacity-10"
             style={{ background: "radial-gradient(circle,#3b82f6,transparent)" }} />
@@ -146,7 +138,6 @@ const LoginPage = () => {
 
         <div className="relative w-full max-w-sm">
 
-          {/* Mobile logo */}
           <div className="flex items-center gap-3 mb-10 lg:hidden">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center"
               style={{ background: "linear-gradient(135deg,#3b82f6,#7c3aed)" }}>
@@ -158,24 +149,20 @@ const LoginPage = () => {
             </span>
           </div>
 
-          {/* Heading */}
           <div className="mb-8">
             <h1 className="text-3xl font-black text-white mb-2">Welcome back</h1>
             <p className="text-gray-600 text-sm">Sign in to your account to continue</p>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="mb-6 flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-300 rounded-xl px-4 py-3 text-sm">
-              <span className="text-base shrink-0">⚠</span>
+              <span className="text-base shrink-0">âš </span>
               {error}
             </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Username */}
             <div>
               <label htmlFor="username" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Username
@@ -196,7 +183,6 @@ const LoginPage = () => {
               />
             </div>
 
-            {/* Password */}
             <div>
               <label htmlFor="password" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                 Password
@@ -207,7 +193,7 @@ const LoginPage = () => {
                   type={showPass ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   required
                   className="w-full px-4 py-3 pr-11 rounded-xl text-white text-sm placeholder-gray-600
                     border border-white/[0.08] bg-white/[0.04]
@@ -226,7 +212,6 @@ const LoginPage = () => {
               </div>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={loading || !username.trim() || !password}
@@ -239,7 +224,7 @@ const LoginPage = () => {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <FaSpinner className="animate-spin text-xs" />
-                  Signing in…
+                  Signing inâ€¦
                 </span>
               ) : (
                 "Sign in"
@@ -253,7 +238,6 @@ const LoginPage = () => {
         </div>
       </div>
 
-      {/* Float animation keyframes */}
       <style>{`
         @keyframes float {
           from { transform: translateY(0px) rotate(var(--r, 0deg)); }

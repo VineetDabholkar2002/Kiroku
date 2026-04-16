@@ -55,11 +55,13 @@ namespace Kiroku.Application.Services
             {
                 AnimeId = a.AnimeId,
                 AnimeMalId = a.Anime?.MalId ?? 0,
-                AnimeTitle = a.Anime.Title,
-                AnimeImageUrl = a.Anime.Images.FirstOrDefault(i => i.Format == "jpg")?.ImageUrl
-                    ?? a.Anime.Images.FirstOrDefault()?.ImageUrl,
-                AnimeType = a.Anime.Type,
-                AnimeScore = a.Anime.Score,
+                AnimeTitle = a.Anime?.Title ?? string.Empty,
+                AnimeImageUrl = a.Anime?.Images.FirstOrDefault(i => i.Format == "jpg")?.ImageUrl
+                    ?? a.Anime?.Images.FirstOrDefault()?.ImageUrl,
+                AnimeType = a.Anime?.Type,
+                AnimeScore = a.Anime?.Score,
+                Episodes = a.Anime?.Episodes,
+                Duration = a.Anime?.Duration,
                 Status = a.Status,
                 Score = a.Score,
                 Tags = a.Anime?.AnimeGenres?
@@ -71,7 +73,13 @@ namespace Kiroku.Application.Services
                         Name = g.Name ?? string.Empty,
                         Type = g.Type ?? string.Empty
                     })
-                    .ToList() ?? new List<UserAnimeTagDto>()
+                    .ToList() ?? new List<UserAnimeTagDto>(),
+                Studios = a.Anime?.AnimeStudios?
+                    .Select(s => s.Studio?.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Cast<string>()
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? new List<string>()
             }).ToList();
         }
 
@@ -102,6 +110,8 @@ namespace Kiroku.Application.Services
                     ?? updated.Anime?.Images.FirstOrDefault()?.ImageUrl,
                 AnimeType = updated.Anime?.Type,
                 AnimeScore = updated.Anime?.Score,
+                Episodes = updated.Anime?.Episodes,
+                Duration = updated.Anime?.Duration,
                 Status = updated.Status,
                 Score = updated.Score,
                 Tags = updated.Anime?.AnimeGenres?
@@ -113,7 +123,13 @@ namespace Kiroku.Application.Services
                         Name = g.Name ?? string.Empty,
                         Type = g.Type ?? string.Empty
                     })
-                    .ToList() ?? new List<UserAnimeTagDto>()
+                    .ToList() ?? new List<UserAnimeTagDto>(),
+                Studios = updated.Anime?.AnimeStudios?
+                    .Select(s => s.Studio?.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Cast<string>()
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? new List<string>()
             };
         }
 
@@ -156,7 +172,7 @@ namespace Kiroku.Application.Services
                     pair => GetPreferenceWeight(pair.Value.Status, pair.Value.Score));
 
                 var sharedAnimeIds = targetWeights.Keys.Intersect(candidateWeights.Keys).ToList();
-                if (sharedAnimeIds.Count < 2)
+                if (sharedAnimeIds.Count == 0)
                 {
                     continue;
                 }
@@ -248,6 +264,14 @@ namespace Kiroku.Application.Services
                 }
             }
 
+            if (recommendationAccumulator.Count == 0)
+            {
+                foreach (var fallback in BuildTagFallbackRecommendations(allUsers, targetAnimeByMalId, targetAnimeList))
+                {
+                    recommendationAccumulator[fallback.AnimeMalId] = fallback;
+                }
+            }
+
             return new UserRecommendationsDto
             {
                 Username = username,
@@ -283,6 +307,82 @@ namespace Kiroku.Application.Services
             };
         }
 
+        private static IEnumerable<RecommendationCandidate> BuildTagFallbackRecommendations(
+            IEnumerable<User> allUsers,
+            IReadOnlyDictionary<int, UserAnimeListDTO> targetAnimeByMalId,
+            IReadOnlyCollection<UserAnimeListDTO> targetAnimeList)
+        {
+            var tagWeights = targetAnimeList
+                .Where(item => IsPositiveStatus(item.Status))
+                .SelectMany(item => (item.Tags ?? new List<UserAnimeTagDto>())
+                    .Select(tag => new
+                    {
+                        Key = $"{normalizeTagType(tag.Type)}:{tag.MalId}",
+                        Weight = Math.Max(0.2, GetPreferenceWeight(item.Status, item.Score))
+                    }))
+                .GroupBy(item => item.Key)
+                .ToDictionary(group => group.Key, group => group.Sum(x => x.Weight));
+
+            if (tagWeights.Count == 0)
+            {
+                yield break;
+            }
+
+            var candidates = allUsers
+                .SelectMany(user => user.AnimeList)
+                .Where(entry => entry.Anime != null && entry.Anime.MalId > 0 && entry.Anime.Approved)
+                .GroupBy(entry => entry.Anime!.MalId)
+                .Select(group => group.First())
+                .Where(entry => !targetAnimeByMalId.ContainsKey(entry.Anime!.MalId));
+
+            foreach (var entry in candidates)
+            {
+                var anime = entry.Anime!;
+                var tags = anime.AnimeGenres?
+                    .Select(ag => ag.Genre)
+                    .Where(g => g != null)
+                    .Select(g => new UserAnimeTagDto
+                    {
+                        MalId = g!.MalId,
+                        Name = g.Name ?? string.Empty,
+                        Type = g.Type ?? string.Empty
+                    })
+                    .ToList() ?? new List<UserAnimeTagDto>();
+
+                var tagScore = tags.Sum(tag =>
+                {
+                    var key = $"{normalizeTagType(tag.Type)}:{tag.MalId}";
+                    return tagWeights.TryGetValue(key, out var value) ? value : 0;
+                });
+
+                if (tagScore <= 0)
+                {
+                    continue;
+                }
+
+                yield return new RecommendationCandidate
+                {
+                    AnimeId = anime.Id,
+                    AnimeMalId = anime.MalId,
+                    AnimeTitle = anime.Title ?? string.Empty,
+                    AnimeImageUrl = anime.Images.FirstOrDefault(i => i.Format == "jpg")?.ImageUrl
+                        ?? anime.Images.FirstOrDefault()?.ImageUrl,
+                    AnimeType = anime.Type,
+                    AnimeScore = anime.Score,
+                    Rank = anime.Rank,
+                    Popularity = anime.Popularity,
+                    Score = NormalizeAnimeQuality(anime) + (tagScore * 0.08),
+                    ReasonUsernames = new List<string> { "Tag match" },
+                    Tags = tags
+                };
+            }
+        }
+
+        private static string normalizeTagType(string? type)
+        {
+            return string.Equals(type, "explicit_genre", StringComparison.OrdinalIgnoreCase) ? "genre" : (type ?? "genre");
+        }
+
         private static UserAnimeListDTO MapUserAnimeList(UserAnimeList entry)
         {
             return new UserAnimeListDTO
@@ -294,6 +394,8 @@ namespace Kiroku.Application.Services
                     ?? entry.Anime?.Images.FirstOrDefault()?.ImageUrl,
                 AnimeType = entry.Anime?.Type,
                 AnimeScore = entry.Anime?.Score,
+                Episodes = entry.Anime?.Episodes,
+                Duration = entry.Anime?.Duration,
                 Status = entry.Status,
                 Score = entry.Score,
                 Tags = entry.Anime?.AnimeGenres?
@@ -305,7 +407,13 @@ namespace Kiroku.Application.Services
                         Name = g.Name ?? string.Empty,
                         Type = g.Type ?? string.Empty
                     })
-                    .ToList() ?? new List<UserAnimeTagDto>()
+                    .ToList() ?? new List<UserAnimeTagDto>(),
+                Studios = entry.Anime?.AnimeStudios?
+                    .Select(s => s.Studio?.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Cast<string>()
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? new List<string>()
             };
         }
 

@@ -26,8 +26,6 @@ namespace Kiroku.API.Controllers
             _dbContextFactory = dbContextFactory;
         }
 
-        // ---- Lightweight paginated endpoints (main fields only) ----
-
         [HttpGet("popular")]
         public async Task<IActionResult> GetPopularAnime(int page = 1, int per_page = 25) =>
             await GetPagedResponse(_context.Animes.Where(a => a.Approved && a.Popularity != null && a.Popularity > 0).OrderBy(a => a.Popularity), page, per_page, "Anime:Popular");
@@ -110,18 +108,15 @@ namespace Kiroku.API.Controllers
             return Ok(await query.ToListAsync());
         }
 
-        // ---- "Detail page" endpoint: LOAD MAIN FIELDS THEN JOIN COLLECTIONS SEPARATELY ----
-
         [HttpGet("{id}")]
         public async Task<IActionResult> GetAnimeById(int id)
         {
-            string cacheKey = $"AnimeDetail:{id}";
+            string cacheKey = $"AnimeDetail:MalId:{id}";
 
             var cached = await _cacheService.GetAsync<AnimeDto>(cacheKey);
             if (cached != null)
                 return Ok(cached);
 
-            // 1. Get main fields from main context (always thread-safe if awaited before parallel ops)
             var animeMain = await _context.Animes.AsNoTracking()
                 .Where(a => a.MalId == id)
                 .Select(a => new AnimeDto
@@ -151,7 +146,6 @@ namespace Kiroku.API.Controllers
                     Season = a.Season,
                     Year = a.Year,
                     Images = a.Images.Select(i => new AnimeImageDto { Format = i.Format, ImageUrl = i.ImageUrl }).ToList(),
-                    // One-to-one children (if any)
                     Trailer = a.Trailer != null ? new TrailerDto
                     {
                         YoutubeId = a.Trailer.YoutubeId,
@@ -200,7 +194,7 @@ namespace Kiroku.API.Controllers
             if (animeMain == null)
                 return NotFound(new { message = "Anime not found" });
 
-            // 2. Fetch large/many-to-many collections in parallel with new DbContext per task
+            // The detail page pulls related collections separately to avoid one oversized join.
             Task<List<GenreDto>> genresTask = Task.Run(async () =>
             {
                 using var ctx = _dbContextFactory.CreateDbContext();
@@ -301,7 +295,6 @@ namespace Kiroku.API.Controllers
 
             await Task.WhenAll(genresTask, studiosTask, producersTask, licensorsTask, themesTask, extLinksTask, streamLinksTask, relationsTask);
 
-            // Attach all result collections to main DTO
             var allGenres = genresTask.Result;
             animeMain.Genres = allGenres.Where(x => x.Type == "genre").ToList();
             animeMain.ExplicitGenres = allGenres.Where(x => x.Type == "explicit_genre").ToList();
@@ -318,8 +311,6 @@ namespace Kiroku.API.Controllers
             await _cacheService.SetAsync(cacheKey, animeMain, TimeSpan.FromMinutes(30));
             return Ok(animeMain);
         }
-
-        // ---- Random, themes, recommendations etc, as before ----
 
         [HttpGet("random")]
         public async Task<IActionResult> GetRandomAnime()
@@ -344,21 +335,9 @@ namespace Kiroku.API.Controllers
             return result == null ? NotFound(new { message = "No anime found" }) : Ok(result);
         }
 
-        //[HttpGet("{id}/characters")]
-        //public async Task<IActionResult> GetCharacters(int id)
-        //{
-        //    var url = $"https://api.jikan.moe/v4/anime/{id}/characters";
-        //    var response = await _httpClient.GetAsync(url);
-        //    if (!response.IsSuccessStatusCode)
-        //        return StatusCode((int)response.StatusCode, "Failed to fetch characters from Jikan");
-        //    var json = await response.Content.ReadAsStringAsync();
-        //    var result = JsonConvert.DeserializeObject<CharacterApiResponse>(json);
-        //    return Ok(result);
-        //}
         [HttpGet("{id}/characters")]
         public async Task<IActionResult> GetCharacters(int id)
         {
-            // Eagerly load all related anime, characters, voices, people, images
             var characters = await _context.AnimeCharacters
                 .Where(ac => ac.Anime.MalId == id)
                 .Select(ac => new
@@ -394,25 +373,12 @@ namespace Kiroku.API.Controllers
 
             return Ok(new { data = characters });
         }
-
-
-        //[HttpGet("{id}/person")]
-        //public async Task<IActionResult> GetPeople(int id)
-        //{
-        //    var url = $"https://api.jikan.moe/v4/people/{id}";
-        //    var response = await _httpClient.GetAsync(url);
-        //    if (!response.IsSuccessStatusCode)
-        //        return StatusCode((int)response.StatusCode, "Failed to fetch people from Jikan");
-        //    var json = await response.Content.ReadAsStringAsync();
-        //    var result = JsonConvert.DeserializeObject<CharacterApiResponse>(json);
-        //    return Ok(result);
-        //}
-
         [HttpGet("{id}/person")]
         public async Task<IActionResult> GetPersonByMalId(int id)
         {
             var person = await _context.People
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(p => p.Images)
                 .Include(p => p.CharacterVoices)
                     .ThenInclude(cv => cv.Character)
@@ -494,12 +460,12 @@ namespace Kiroku.API.Controllers
             return Ok(themes);
         }
 
-        // ---- Helper for paginated queries with caching ----
-
         private async Task<IActionResult> GetPagedResponse(IQueryable<Kiroku.Domain.Entities.Anime> query, int page, int per_page, string cacheKeyPrefix)
         {
             if (page < 1) page = 1;
             if (per_page < 1 || per_page > 100) per_page = 25;
+
+            query = query.AsNoTracking();
 
             string cacheKey = $"{cacheKeyPrefix}:page={page}:perpage={per_page}";
 

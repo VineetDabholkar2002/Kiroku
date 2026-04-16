@@ -44,8 +44,9 @@ public class PlaylistController : ControllerBase
     [HttpGet("{username}")]
     public async Task<IActionResult> GetPlaylist(string username)
     {
-        // 1) Load user + their anime list + Anime & ThemeEntries & Images
         var user = await _ctx.Users
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(u => u.AnimeList)
                 .ThenInclude(ual => ual.Anime)
                     .ThenInclude(a => a.ThemeEntries)
@@ -53,15 +54,13 @@ public class PlaylistController : ControllerBase
                 .ThenInclude(ual => ual.Anime)
                     .ThenInclude(a => a.Images)
             .FirstOrDefaultAsync(u => u.Username == username);
-        var b = _ctx.UserAnimeLists.OrderBy(a=>a.Id).Last();
-        var c = _ctx.Users.Where(u => u.Id == 98178);
+
         if (user == null)
             return NotFound(new { message = $"User '{username}' not found" });
 
         var result = new List<PlaylistSongDto>();
         var regex = new Regex("\"([^\"]+)\" by ([^()]+)");
 
-        // 2) For each anime in their list, get themes from DB
         foreach (var ual in user.AnimeList)
         {
             var anime = ual.Anime;

@@ -5,7 +5,6 @@ import { FaSortAlphaDown, FaSortAlphaUp, FaSearch, FaPlay, FaSpotify, FaMusic, F
 import { HiSparkles } from "react-icons/hi2";
 import { useSpotify } from "../context/SpotifyContext";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
 
@@ -28,7 +27,6 @@ const STATUS_BADGE = {
   plantowatch: "bg-violet-500/20 text-violet-300 border border-violet-500/30",
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function applyFiltersAndSort(songs, { searchQuery, searchMode, statusFilter, sortBy }) {
   const q = searchQuery.toLowerCase();
@@ -55,7 +53,6 @@ function statusBadgeClass(status) {
   return STATUS_BADGE[status.toLowerCase().replace(/\s+/g, "")] ?? "bg-gray-500/20 text-gray-300 border border-gray-500/30";
 }
 
-// ─── SongCard ─────────────────────────────────────────────────────────────────
 
 const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
   const artistLabel = Array.isArray(song.artist)
@@ -75,7 +72,6 @@ const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
         ${isCurrent ? "border-emerald-400/40" : "border-white/[0.07] group-hover:border-white/[0.15]"}`}
       />
 
-      {/* Album art */}
       <div className="relative overflow-hidden aspect-square">
         <img
           src={song.image}
@@ -86,7 +82,6 @@ const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
 
-        {/* Now playing badge */}
         {isCurrent && (
           <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-emerald-500 text-black text-[9px] font-black px-2 py-1 rounded-full tracking-wider">
             <span className="flex gap-[2px] items-end" style={{height:"10px"}}>
@@ -99,7 +94,6 @@ const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
           </div>
         )}
 
-        {/* Play button */}
         {canPlay && (
           <button
             onClick={onPlay}
@@ -117,7 +111,6 @@ const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
         )}
       </div>
 
-      {/* Info */}
       <div className="p-3.5">
         <h3 className="font-semibold text-white text-[13px] leading-snug truncate">{song.name}</h3>
         <p className="text-[11px] text-gray-500 truncate mt-0.5">{artistLabel}</p>
@@ -137,7 +130,6 @@ const SongCard = memo(function SongCard({ song, isCurrent, onPlay, canPlay }) {
   );
 });
 
-// ─── SpotifyConnectBanner ─────────────────────────────────────────────────────
 
 function SpotifyConnectBanner({ onConnect }) {
   return (
@@ -152,7 +144,7 @@ function SpotifyConnectBanner({ onConnect }) {
           </div>
           <div>
             <p className="text-white font-semibold">Connect Spotify to enable playback</p>
-            <p className="text-gray-500 text-sm mt-0.5">Your account's own token is used — credentials never touch our servers.</p>
+            <p className="text-gray-500 text-sm mt-0.5">Your account's own token is used â€” credentials never touch our servers.</p>
           </div>
         </div>
         <button
@@ -168,7 +160,6 @@ function SpotifyConnectBanner({ onConnect }) {
   );
 }
 
-// ─── SpotifyUserPill ──────────────────────────────────────────────────────────
 
 function SpotifyUserPill({ user, onDisconnect }) {
   return (
@@ -178,12 +169,11 @@ function SpotifyUserPill({ user, onDisconnect }) {
         : <FaSpotify className="text-emerald-400 text-xs" />
       }
       <span className="text-emerald-300 font-medium text-xs">{user?.display_name ?? "Connected"}</span>
-      <button onClick={onDisconnect} className="text-gray-600 hover:text-red-400 transition-colors text-xs ml-0.5" aria-label="Disconnect Spotify">✕</button>
+      <button onClick={onDisconnect} className="text-gray-600 hover:text-red-400 transition-colors text-xs ml-0.5" aria-label="Disconnect Spotify">âœ•</button>
     </div>
   );
 }
 
-// ─── StatsBar ─────────────────────────────────────────────────────────────────
 
 function StatsBar({ allSongs }) {
   const stats = [
@@ -204,17 +194,15 @@ function StatsBar({ allSongs }) {
   );
 }
 
-// ─── FilterBar ────────────────────────────────────────────────────────────────
 
 function FilterBar({ searchQuery, onSearch, searchMode, onSearchMode, statusFilter, onStatus, sortBy, onSort }) {
   const placeholder =
-    searchMode === "song"  ? "Search by song name…" :
-    searchMode === "anime" ? "Search by anime title…" :
-                             "Search songs & anime…";
+    searchMode === "song"  ? "Search by song nameâ€¦" :
+    searchMode === "anime" ? "Search by anime titleâ€¦" :
+                             "Search songs & animeâ€¦";
   return (
     <div className="mb-7 space-y-3">
       <div className="flex gap-3 flex-wrap items-center">
-        {/* Search */}
         <div className="flex flex-1 min-w-[220px] items-center rounded-xl border border-white/[0.08] bg-white/[0.04]
           focus-within:border-blue-500/40 focus-within:bg-white/[0.06] focus-within:shadow-[0_0_0_3px_rgba(59,130,246,0.08)]
           transition-all duration-200 overflow-hidden">
@@ -238,7 +226,6 @@ function FilterBar({ searchQuery, onSearch, searchMode, onSearchMode, statusFilt
           </div>
         </div>
 
-        {/* Sort */}
         <button onClick={onSort}
           className="flex items-center gap-2 px-4 py-3 rounded-xl text-xs font-semibold
             bg-white/[0.04] border border-white/[0.08] text-gray-400
@@ -249,7 +236,6 @@ function FilterBar({ searchQuery, onSearch, searchMode, onSearchMode, statusFilt
         </button>
       </div>
 
-      {/* Status pills */}
       <div className="flex gap-2 flex-wrap">
         {STATUS_FILTERS.map((f) => (
           <button key={f.key} onClick={() => onStatus(f.key)}
@@ -267,7 +253,6 @@ function FilterBar({ searchQuery, onSearch, searchMode, onSearchMode, statusFilt
   );
 }
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function SkeletonGrid() {
   return (
@@ -285,7 +270,6 @@ function SkeletonGrid() {
   );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyHero() {
   return (
@@ -304,7 +288,6 @@ function EmptyHero() {
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function PlaylistMaker() {
   const {
@@ -555,7 +538,6 @@ export default function PlaylistMaker() {
   return (
     <div className="min-h-screen text-gray-200 relative overflow-x-hidden" style={{ background: "#080c14" }}>
 
-      {/* Background atmosphere */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -top-32 -left-32 w-[560px] h-[560px] rounded-full opacity-100"
           style={{ background: "radial-gradient(circle,rgba(59,130,246,0.07) 0%,transparent 70%)" }} />
@@ -569,7 +551,6 @@ export default function PlaylistMaker() {
 
       <div className="relative container mx-auto py-12 px-4 max-w-7xl mb-28">
 
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-10">
           <div>
             <div className="flex items-center gap-2.5 mb-3">
@@ -581,7 +562,7 @@ export default function PlaylistMaker() {
             {fetchedUsername ? (
               <>
                 <h1 className="text-4xl font-bold text-white">{fetchedUsername}'s Playlist</h1>
-                <p className="text-gray-600 text-sm mt-1.5">{allSongs.length} tracks · anime soundtracks</p>
+                <p className="text-gray-600 text-sm mt-1.5">{allSongs.length} tracks Â· anime soundtracks</p>
               </>
             ) : (
               <h1 className="text-4xl font-bold text-white leading-[1.15]">
@@ -622,7 +603,7 @@ export default function PlaylistMaker() {
                     if (userSuggestions.length) setShowSuggestions(true);
                   }}
                   onKeyDown={(e) => e.key === "Enter" && fetchPlaylist(inputUsername)}
-                  placeholder="Enter username…"
+                  placeholder="Enter usernameâ€¦"
                   className="bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none w-full"
                 />
               </div>
@@ -709,23 +690,18 @@ export default function PlaylistMaker() {
           </div>
         </div>
 
-        {/* Spotify banner */}
         {!isSpotifyConnected && <SpotifyConnectBanner onConnect={connectSpotify} />}
 
-        {/* Error */}
         {error && (
           <div role="alert" className="mb-6 flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-300 rounded-xl px-5 py-3.5 text-sm">
-            <span>⚠</span> {error}
+            <span>âš </span> {error}
           </div>
         )}
 
-        {/* Loading skeleton */}
         {loading && !fetchedUsername && <SkeletonGrid />}
 
-        {/* Empty hero */}
         {!fetchedUsername && !loading && <EmptyHero />}
 
-        {/* Playlist */}
         {fetchedUsername && (
           <>
             <StatsBar allSongs={allSongs} />
@@ -739,7 +715,7 @@ export default function PlaylistMaker() {
 
             {displayedSongs.length === 0 && !loading ? (
               <div className="flex flex-col items-center py-20 text-center">
-                <span className="text-4xl mb-4">🎵</span>
+                <span className="text-4xl mb-4">ðŸŽµ</span>
                 <p className="text-gray-400 font-medium">No songs match your filters</p>
                 <p className="text-gray-600 text-sm mt-1">Try adjusting the search or status filter</p>
               </div>
@@ -761,14 +737,14 @@ export default function PlaylistMaker() {
             {loading && (
               <div className="flex items-center justify-center gap-2.5 mt-10 text-gray-600 text-sm">
                 <span className="w-3.5 h-3.5 border-2 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
-                Loading more tracks…
+                Loading more tracksâ€¦
               </div>
             )}
 
             {!loading && !hasMore && displayedSongs.length > 0 && (
               <div className="mt-14 flex flex-col items-center gap-2">
                 <div className="w-24 h-px" style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent)" }} />
-                <p className="text-gray-700 text-xs">{displayedSongs.length} tracks · end of playlist</p>
+                <p className="text-gray-700 text-xs">{displayedSongs.length} tracks Â· end of playlist</p>
               </div>
             )}
 

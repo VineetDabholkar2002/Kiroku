@@ -6,15 +6,14 @@ using Kiroku.Application.Services;
 using Kiroku.Infrastructure.Data.Repositories;
 using Kiroku.Data.Seeders;
 using Kiroku.Domain.Entities;
+using Kiroku.API.Services;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.Diagnostics;
 using System.Net.Sockets;
 
-// Build the web application
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
-// Register essential services
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<SpotifyService>();
@@ -22,25 +21,21 @@ builder.Services.AddSingleton<SpotifyAuthService>();
 builder.Services.AddSingleton<SpotifyService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<CacheWarmService>();
 
-// Register Redis distributed cache
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = configuration.GetConnectionString("Redis");
     options.InstanceName = "Kiroku:";
 });
 
-
-// Register reusable CacheService abstraction
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
-// Register DbContext with PostgreSQL
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
-// Add CORS policy
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -51,7 +46,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Enable Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -70,23 +64,13 @@ if (app.Environment.IsDevelopment())
 {
     logger.LogInformation("Kiroku.API starting in Development.");
     await EnsureChatServiceRunningAsync(configuration, app.Environment.ContentRootPath, logger);
+    await WarmCachesAsync(app.Services, configuration, logger);
 }
 
-// ]Seed database data here if needed
 using (var scope = app.Services.CreateScope())
 {
-    //var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    //await UserAndListSeeder.SeedAsync(context);
-    //await CharacterSeeder.SeedCharactersAsync(context);
-
-    //var animeJsonPath = Path.Combine("C:\\Main\\Main Projects\\Kiroku\\backend\\Kiroku.Data", "Seeders", "all_anime_full.json");
-    //var checkPtJsonPath = Path.Combine("C:\\Main\\Main Projects\\Kiroku\\backend\\Kiroku.Data", "Seeders", "checkpoint.json");
-
-    //var animeSeeder = new AnimeFullSeeder(context, animeJsonPath, checkPtJsonPath);
-    //await animeSeeder.SeedAsync();
 }
 
-// Enable Swagger UI in development
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -97,10 +81,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Enable CORS
 app.UseCors("AllowAll");
 
-// Enable HTTPS and controller mapping
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
@@ -191,4 +173,19 @@ static async Task<bool> IsChatHealthyAsync(string healthUrl)
     {
         return false;
     }
+}
+
+static async Task WarmCachesAsync(IServiceProvider services, IConfiguration configuration, ILogger logger)
+{
+    var warmOnStartup = configuration.GetValue("CacheWarmup:RunOnStartup", false);
+    if (!warmOnStartup)
+    {
+        logger.LogInformation("Cache warmup on startup is disabled.");
+        return;
+    }
+
+    using var scope = services.CreateScope();
+    var warmer = scope.ServiceProvider.GetRequiredService<CacheWarmService>();
+    var results = await warmer.WarmMostUsedAnimeEndpointsAsync();
+    logger.LogInformation("Cache warmup completed for {Count} endpoint groups.", results.Count);
 }
