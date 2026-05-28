@@ -28,7 +28,7 @@ namespace Kiroku.Domain.Entities
         public Person Person { get; set; }
     }
 
-    [Table("CharacterVoices")]
+    [Table("CharacterVoices")] // join: character <-> person (VA) + language
     public class CharacterVoice
     {
         public int Id { get; set; }

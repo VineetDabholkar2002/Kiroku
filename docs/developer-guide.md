@@ -2,12 +2,12 @@
 
 ## Recommended local startup order
 
-1. Start local dependencies:
+1. Start local dependencies and helper services:
    - `npm run services`
 2. Start `Kiroku.API`
 3. Start the frontend Vite app
 
-In development, `Kiroku.API` will also try to auto-start `Kiroku.Chat` if the chat health endpoint is not already up.
+`npm run services` now also attempts to start `Kiroku.Chat` automatically if it is not already running.
 
 ## One-time chat setup
 

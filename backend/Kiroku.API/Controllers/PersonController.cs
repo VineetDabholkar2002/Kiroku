@@ -57,6 +57,7 @@ namespace Kiroku.API.Controllers
                             g => g.Key,
                             g => g.Select(i => i.ImageUrl).ToList()
                         ),
+                    // Add other character info if needed
                 })
             };
 

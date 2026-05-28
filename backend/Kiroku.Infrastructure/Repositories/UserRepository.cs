@@ -18,8 +18,6 @@ namespace Kiroku.Infrastructure.Data.Repositories
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
             return await context.Users
-                .AsNoTracking()
-                .AsSplitQuery()
                 .Include(u => u.AnimeList)
                 .ThenInclude(ua => ua.Anime)
                 .ThenInclude(a => a.Images)
@@ -33,34 +31,26 @@ namespace Kiroku.Infrastructure.Data.Repositories
         public async Task<User?> GetUserByUsername(string username)
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
-            return await context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Username == username);
+            return await context.Users.FirstOrDefaultAsync(u => u.Username == username);
         }
 
         public async Task<User?> AuthenticateUser(string username, string password)
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
-            return await context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Username == username && u.Password == password);
+            return await context.Users.FirstOrDefaultAsync(u =>
+                u.Username == username && u.Password == password);
         }
 
         public async Task<List<UserAnimeList>> GetUserAnimeList(int userId)
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
             return await context.UserAnimeLists
-                .AsNoTracking()
-                .AsSplitQuery()
                 .Where(ua => ua.UserId == userId)
                 .Include(ua => ua.Anime)
                 .ThenInclude(a => a.Images)
                 .Include(ua => ua.Anime)
                 .ThenInclude(a => a.AnimeGenres)
                 .ThenInclude(ag => ag.Genre)
-                .Include(ua => ua.Anime)
-                .ThenInclude(a => a.AnimeStudios)
-                .ThenInclude(ags => ags.Studio)
                 .OrderBy(ua => ua.Anime.Title)
                 .ToListAsync();
         }
@@ -114,9 +104,11 @@ namespace Kiroku.Infrastructure.Data.Repositories
         public async Task<List<User>> GetUsersWithAnimeLists()
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
+            // Set extended timeout for large recommendation computation queries
+            context.Database.SetCommandTimeout(120);
+            
             return await context.Users
-                .AsNoTracking()
-                .AsSplitQuery()
+                .Where(u => u.AnimeList.Any())
                 .Include(u => u.AnimeList)
                 .ThenInclude(ua => ua.Anime)
                 .ThenInclude(a => a.Images)
@@ -124,8 +116,9 @@ namespace Kiroku.Infrastructure.Data.Repositories
                 .ThenInclude(ua => ua.Anime)
                 .ThenInclude(a => a.AnimeGenres)
                 .ThenInclude(ag => ag.Genre)
-                .Where(u => u.AnimeList.Any())
+                .AsSplitQuery() // Prevents Cartesian explosion from multiple includes
                 .ToListAsync();
         }
+
     }
 }

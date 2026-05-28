@@ -22,6 +22,7 @@
 - Used by `Kiroku.API` for caching.
 - Default expected port: `6379`
 - The local startup script prefers native `redis-server`, then falls back to a Docker container named `kiroku-redis`.
+- `npm run services` now also attempts to auto-start `Kiroku.Chat` if the chat endpoint is not already available.
 
 ### Ollama
 

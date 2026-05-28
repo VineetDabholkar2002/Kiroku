@@ -66,7 +66,7 @@ namespace Kiroku.Infrastructure.Services
                 }
                 catch (Exception ex)
                 {
-                    // Cache set failed log.
+                    // Cache set failed — log but don't fail the request.
                     Console.WriteLine("ERROR in cache-layer (write): " + ex.ToString());
                 }
             }

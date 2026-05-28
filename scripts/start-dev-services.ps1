@@ -11,6 +11,64 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     throw "Ollama is not installed or not on PATH."
 }
 
+function Ensure-ChatServiceRunning {
+    param(
+        [int]$ChatPort = 8000
+    )
+
+    $healthUrl = "http://127.0.0.1:$ChatPort/health"
+    Write-Host "Checking Kiroku.Chat health at $healthUrl..." -ForegroundColor Cyan
+
+    $chatHealthy = $false
+    try {
+        $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -Method Get -TimeoutSec 2 2>$null
+        if ($response.StatusCode -eq 200) {
+            $chatHealthy = $true
+        }
+    } catch {
+        $chatHealthy = $false
+    }
+
+    if ($chatHealthy) {
+        Write-Host "Kiroku.Chat is already running." -ForegroundColor Green
+        return
+    }
+
+    $chatDir = Join-Path $PSScriptRoot "..\backend\Kiroku.Chat"
+    if (-not (Test-Path $chatDir)) {
+        Write-Host "Chat service directory not found at $chatDir. Skipping Kiroku.Chat auto-start." -ForegroundColor Yellow
+        return
+    }
+
+    $venvPython = Join-Path $chatDir ".venv\Scripts\python.exe"
+    $pythonExe = if (Test-Path $venvPython) { $venvPython } else { "python" }
+
+    if (-not (Get-Command $pythonExe -ErrorAction SilentlyContinue)) {
+        Write-Host "Python executable '$pythonExe' was not found. Skipping Kiroku.Chat auto-start." -ForegroundColor Yellow
+        return
+    }
+
+    if (-not (Test-Path $chatDir)) {
+        Write-Host "Chat service directory not found at $chatDir. Skipping Kiroku.Chat auto-start." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "Starting Kiroku.Chat from $chatDir..." -ForegroundColor Yellow
+    Start-Process -FilePath $pythonExe -ArgumentList "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "$ChatPort" -WorkingDirectory $chatDir -WindowStyle Minimized | Out-Null
+    Start-Sleep -Seconds 3
+
+    try {
+        $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -Method Get -TimeoutSec 2 2>$null
+        if ($response.StatusCode -eq 200) {
+            Write-Host "Kiroku.Chat is now healthy." -ForegroundColor Green
+            return
+        }
+    } catch {
+    }
+
+    Write-Host "Kiroku.Chat was started but did not respond on $healthUrl yet." -ForegroundColor Yellow
+}
+
 & ollama list *> $null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Starting Ollama..." -ForegroundColor Yellow
@@ -71,6 +129,8 @@ if (-not $redisUp) {
 } else {
     Write-Host "Redis already running." -ForegroundColor Green
 }
+
+Ensure-ChatServiceRunning -ChatPort 8000
 
 Write-Host ""
 Write-Host "Ready:" -ForegroundColor Cyan

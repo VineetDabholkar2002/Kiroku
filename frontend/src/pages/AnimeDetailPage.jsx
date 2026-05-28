@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import { HiSparkles } from "react-icons/hi2";
 
+// ─── Image helpers ────────────────────────────────────────────────────────────
 
 const getPosterUrl = (anime) =>
   anime?.images?.find((i) => i.format === "jpg")?.imageUrl  ||
@@ -31,26 +32,7 @@ const getRecImg = (rec) =>
   rec?.entry?.images?.webp?.imageUrl ||
   "/placeholder-anime.jpg";
 
-const normalizeCharacter = (char) => ({
-  role: char?.role,
-  favorites: char?.favorites ?? 0,
-  character: {
-    malId: char?.character?.mal_id,
-    url: char?.character?.url,
-    name: char?.character?.name,
-    images: char?.character?.images ?? {},
-  },
-  voiceActors: (char?.voice_actors ?? []).map((va) => ({
-    language: va?.language,
-    person: {
-      malId: va?.person?.mal_id,
-      url: va?.person?.url,
-      name: va?.person?.name,
-      images: va?.person?.images ?? {},
-    },
-  })),
-});
-
+// ─── Glass card wrapper ───────────────────────────────────────────────────────
 
 const Glass = ({ children, className = "", style = {} }) => (
   <div
@@ -61,6 +43,7 @@ const Glass = ({ children, className = "", style = {} }) => (
   </div>
 );
 
+// ─── Section heading ──────────────────────────────────────────────────────────
 
 const Heading = ({ children, count }) => (
   <div className="flex items-center justify-between mb-6">
@@ -77,6 +60,7 @@ const Heading = ({ children, count }) => (
   </div>
 );
 
+// ─── Horizontal scroll ────────────────────────────────────────────────────────
 
 const HScroll = ({ id, children }) => {
   const scroll = (dir) =>
@@ -84,6 +68,7 @@ const HScroll = ({ id, children }) => {
 
   return (
     <div className="relative group/s -mx-1 px-1">
+      {/* Left arrow */}
       <button onClick={() => scroll("left")} aria-label="Scroll left"
         className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8
           flex items-center justify-center rounded-full
@@ -98,6 +83,7 @@ const HScroll = ({ id, children }) => {
         {children}
       </div>
 
+      {/* Right arrow */}
       <button onClick={() => scroll("right")} aria-label="Scroll right"
         className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-8 h-8
           flex items-center justify-center rounded-full
@@ -110,6 +96,7 @@ const HScroll = ({ id, children }) => {
   );
 };
 
+// ─── Stat card ────────────────────────────────────────────────────────────────
 
 const Stat = ({ label, value, color = "text-white", sub }) => (
   <Glass className="px-4 py-3 text-center min-w-[80px]">
@@ -119,6 +106,7 @@ const Stat = ({ label, value, color = "text-white", sub }) => (
   </Glass>
 );
 
+// ─── Genre tag ────────────────────────────────────────────────────────────────
 
 const GenreTag = ({ to, children }) => (
   <Link to={to} className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium
@@ -128,6 +116,7 @@ const GenreTag = ({ to, children }) => (
   </Link>
 );
 
+// ─── Info table row ───────────────────────────────────────────────────────────
 
 const InfoRow = ({ label, children }) => (
   <div className="flex gap-4 py-2.5 border-b border-white/[0.05] last:border-0">
@@ -138,6 +127,7 @@ const InfoRow = ({ label, children }) => (
   </div>
 );
 
+// ─── Character card ───────────────────────────────────────────────────────────
 
 const CharCard = ({ char }) => {
   const va = char.voiceActors?.[0];
@@ -146,6 +136,7 @@ const CharCard = ({ char }) => {
       hover:border-white/[0.15] hover:scale-[1.03] transition-all duration-300 cursor-pointer"
       style={{ background: "linear-gradient(180deg,rgba(255,255,255,0.05) 0%,rgba(255,255,255,0.02) 100%)" }}>
 
+      {/* Character half */}
       <div className="relative overflow-hidden">
         <img src={getCharImg(char)} alt={char.character?.name} loading="lazy"
           className="w-full h-44 object-cover object-top"
@@ -160,6 +151,7 @@ const CharCard = ({ char }) => {
         </div>
       </div>
 
+      {/* VA half */}
       {va && (
         <div className="flex items-center gap-2 p-2.5 border-t border-white/[0.06]">
           <img src={getVaImg(va)} alt={va.person?.name} loading="lazy"
@@ -176,6 +168,7 @@ const CharCard = ({ char }) => {
   );
 };
 
+// ─── Recommendation card ──────────────────────────────────────────────────────
 
 const RecCard = ({ rec }) => (
   <Link to={`/anime/${rec.entry.malId}`}
@@ -193,7 +186,7 @@ const RecCard = ({ rec }) => (
       {rec.votes > 0 && (
         <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[9px] font-bold
           px-1.5 py-0.5 rounded border border-white/10">
-          {rec.votes}âœ“
+          {rec.votes}✓
         </div>
       )}
     </div>
@@ -206,6 +199,7 @@ const RecCard = ({ rec }) => (
   </Link>
 );
 
+// ─── External link ────────────────────────────────────────────────────────────
 
 const ExtLink = ({ name, url, streaming }) => (
   <a href={url} target="_blank" rel="noopener noreferrer"
@@ -228,6 +222,7 @@ const ExtLink = ({ name, url, streaming }) => (
   </a>
 );
 
+// ─── Theme song item ──────────────────────────────────────────────────────────
 
 const ThemeLine = ({ index, text, type }) => (
   <div className="flex items-start gap-3 py-2.5 border-b border-white/[0.05] last:border-0">
@@ -242,6 +237,7 @@ const ThemeLine = ({ index, text, type }) => (
   </div>
 );
 
+// ─── Full screen states ───────────────────────────────────────────────────────
 
 const Screen = ({ children }) => (
   <div className="min-h-screen flex items-center justify-center" style={{ background: "#080c14" }}>
@@ -250,6 +246,7 @@ const Screen = ({ children }) => (
   </div>
 );
 
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 const VISIBLE_TAGS = 6;
 
@@ -282,11 +279,19 @@ const AnimeDetailsPage = () => {
         setRecs(recRes.data.data || []);
         setThemes(themeRes.data);
 
-        const normalizedCharacters = (charRes.data.data || [])
-          .map(normalizeCharacter)
-          .sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0));
-
-        setCharacters(normalizedCharacters);
+        const enriched = await Promise.all(
+          (charRes.data.data || []).map(async (char) => {
+            const va = char.voiceActors?.[0];
+            if (va?.person?.malId && va.language === "Japanese") {
+              try {
+                const r = await axios.get(`/api/v1/people/${va.person.malId}`);
+                return { ...char, voiceActors: [{ ...va, person: { ...va.person, images: r.data.data?.images } }] };
+              } catch { return char; }
+            }
+            return char;
+          })
+        );
+        setCharacters(enriched.sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0)));
       } catch (err) {
         console.error(err);
         setError("Failed to load anime details. Please try again.");
@@ -316,7 +321,7 @@ const AnimeDetailsPage = () => {
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#080c14" }}>
       <span className="w-10 h-10 border-2 border-gray-800 border-t-blue-500 rounded-full animate-spin" />
-      <p className="text-gray-600 text-sm">Loadingâ€¦</p>
+      <p className="text-gray-600 text-sm">Loading…</p>
     </div>
   );
 
@@ -359,6 +364,7 @@ const AnimeDetailsPage = () => {
   return (
     <div className="min-h-screen text-gray-200" style={{ background: "#080c14" }}>
 
+      {/* ── Fixed atmospheric background from poster ──────────────────────── */}
       <div className="fixed inset-0 pointer-events-none z-0" aria-hidden>
         <img src={poster} alt=""
           className="w-full h-full object-cover object-top"
@@ -371,11 +377,12 @@ const AnimeDetailsPage = () => {
       <div className="relative z-10">
         <Navbar />
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        {/* ══════════════════════════════════════════════════════════════════
             HERO BANNER
-        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        ══════════════════════════════════════════════════════════════════ */}
         <div className="relative overflow-hidden" style={{ minHeight: "420px" }}>
 
+          {/* Wide banner blur */}
           <div className="absolute inset-0">
             <img src={poster} alt=""
               className="w-full h-full object-cover object-top"
@@ -383,6 +390,7 @@ const AnimeDetailsPage = () => {
             />
             <div className="absolute inset-0"
               style={{ background: "linear-gradient(to bottom,rgba(8,12,20,0.3) 0%,rgba(8,12,20,0.7) 60%,#080c14 100%)" }} />
+            {/* Subtle left-to-right gradient to bleed into the poster area */}
             <div className="absolute inset-0"
               style={{ background: "linear-gradient(to right,rgba(8,12,20,0) 30%,rgba(8,12,20,0.7) 100%)" }} />
           </div>
@@ -390,6 +398,7 @@ const AnimeDetailsPage = () => {
           <div className="relative container mx-auto px-4 sm:px-6 md:px-10 max-w-7xl pt-10 pb-0">
             <div className="flex flex-col sm:flex-row gap-8 items-end">
 
+              {/* ── Poster ── */}
               <div className="shrink-0 self-center sm:self-end w-40 sm:w-48 md:w-56">
                 <div className="relative rounded-2xl overflow-hidden ring-1 ring-white/[0.12]"
                   style={{ boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
@@ -397,11 +406,13 @@ const AnimeDetailsPage = () => {
                     className="w-full h-auto block"
                     onError={(e) => { e.target.src = "/placeholder-anime.jpg"; }}
                   />
+                  {/* Status */}
                   {anime.status && (
                     <span className={`absolute top-2.5 left-2.5 text-[9px] font-black px-2 py-0.5 rounded-lg ${statusColor}`}>
-                      {anime.status === "Currently Airing" ? "â— AIRING" : anime.status.toUpperCase()}
+                      {anime.status === "Currently Airing" ? "● AIRING" : anime.status.toUpperCase()}
                     </span>
                   )}
+                  {/* Score overlay at bottom */}
                   {anime.score && (
                     <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1
                       py-2 bg-gradient-to-t from-black/90 to-transparent">
@@ -412,8 +423,10 @@ const AnimeDetailsPage = () => {
                 </div>
               </div>
 
+              {/* ── Title block ── */}
               <div className="flex-1 pb-10 min-w-0 space-y-4">
 
+                {/* Tags */}
                 {tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {tags.slice(0, showAllTags ? tags.length : VISIBLE_TAGS).map((g) => (
@@ -445,6 +458,7 @@ const AnimeDetailsPage = () => {
                   </div>
                 )}
 
+                {/* Title */}
                 <div>
                   <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-[1.1] tracking-tight">
                     {anime.title}
@@ -457,17 +471,19 @@ const AnimeDetailsPage = () => {
                   )}
                 </div>
 
+                {/* Quick meta strip */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                   {anime.type     && <span>{anime.type}</span>}
-                  {anime.episodes && <><span className="text-gray-700">Â·</span><span>{anime.episodes} eps</span></>}
-                  {anime.duration && <><span className="text-gray-700">Â·</span><span>{anime.duration}</span></>}
+                  {anime.episodes && <><span className="text-gray-700">·</span><span>{anime.episodes} eps</span></>}
+                  {anime.duration && <><span className="text-gray-700">·</span><span>{anime.duration}</span></>}
                   {anime.season   && anime.year && (
-                    <><span className="text-gray-700">Â·</span>
+                    <><span className="text-gray-700">·</span>
                     <span className="capitalize">{anime.season} {anime.year}</span></>
                   )}
-                  {anime.rating   && <><span className="text-gray-700">Â·</span><span>{anime.rating}</span></>}
+                  {anime.rating   && <><span className="text-gray-700">·</span><span>{anime.rating}</span></>}
                 </div>
 
+                {/* Stat pills */}
                 <div className="flex flex-wrap gap-2.5">
                   {anime.score      != null && <Stat label="Score"      value={anime.score}                       color="text-yellow-400" />}
                   {anime.rank       != null && <Stat label="Rank"       value={`#${anime.rank}`}                  color="text-orange-400" />}
@@ -489,13 +505,15 @@ const AnimeDetailsPage = () => {
           </div>
         </div>
 
-        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        {/* ══════════════════════════════════════════════════════════════════
             MAIN CONTENT
-        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+        ══════════════════════════════════════════════════════════════════ */}
         <main className="container mx-auto px-4 sm:px-6 md:px-10 max-w-7xl py-12 space-y-16">
 
+          {/* ── Synopsis + Info grid ─────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
+            {/* Synopsis (2/3) */}
             <div className="lg:col-span-2 space-y-8">
               {anime.synopsis && (
                 <section>
@@ -516,16 +534,17 @@ const AnimeDetailsPage = () => {
               )}
             </div>
 
+            {/* Info sidebar (1/3) */}
             <div className="lg:col-span-1">
               <Heading>Details</Heading>
               <Glass className="px-5 py-2 divide-y-0">
-                <InfoRow label="Type">{anime.type ?? "â€”"}</InfoRow>
-                <InfoRow label="Episodes">{anime.episodes ?? "â€”"}</InfoRow>
-                <InfoRow label="Duration">{anime.duration ?? "â€”"}</InfoRow>
-                <InfoRow label="Aired">{anime.aired?.string ?? "â€”"}</InfoRow>
-                <InfoRow label="Broadcast">{anime.broadcast?.string ?? "â€”"}</InfoRow>
-                <InfoRow label="Source">{anime.source ?? "â€”"}</InfoRow>
-                <InfoRow label="Rating">{anime.rating ?? "â€”"}</InfoRow>
+                <InfoRow label="Type">{anime.type ?? "—"}</InfoRow>
+                <InfoRow label="Episodes">{anime.episodes ?? "—"}</InfoRow>
+                <InfoRow label="Duration">{anime.duration ?? "—"}</InfoRow>
+                <InfoRow label="Aired">{anime.aired?.string ?? "—"}</InfoRow>
+                <InfoRow label="Broadcast">{anime.broadcast?.string ?? "—"}</InfoRow>
+                <InfoRow label="Source">{anime.source ?? "—"}</InfoRow>
+                <InfoRow label="Rating">{anime.rating ?? "—"}</InfoRow>
                 {anime.studios?.length > 0 && (
                   <InfoRow label="Studios">{anime.studios.map(s => s.name).join(", ")}</InfoRow>
                 )}
@@ -538,6 +557,7 @@ const AnimeDetailsPage = () => {
             </div>
           </div>
 
+          {/* ── Trailer ─────────────────────────────────────────────────── */}
           {anime.trailer?.youtubeId && (
             <section>
               <Heading>Trailer</Heading>
@@ -553,6 +573,7 @@ const AnimeDetailsPage = () => {
             </section>
           )}
 
+          {/* ── Characters & Voice Actors ────────────────────────────────── */}
           {characters.length > 0 && (
             <section>
               <Heading count={characters.length}>Characters & Voice Actors</Heading>
@@ -562,6 +583,7 @@ const AnimeDetailsPage = () => {
             </section>
           )}
 
+          {/* ── Theme Songs ──────────────────────────────────────────────── */}
           {(themes.openings?.length > 0 || themes.endings?.length > 0) && (
             <section>
               <Heading>Theme Songs</Heading>
@@ -571,7 +593,7 @@ const AnimeDetailsPage = () => {
                     <div className="flex items-center gap-2 mb-4">
                       <span className="w-2 h-2 rounded-full bg-blue-500" />
                       <span className="text-[11px] font-black text-blue-400 uppercase tracking-widest">
-                        Openings Â· {themes.openings.length}
+                        Openings · {themes.openings.length}
                       </span>
                     </div>
                     {themes.openings.map((t, i) => <ThemeLine key={i} index={i} text={t} type="op" />)}
@@ -582,7 +604,7 @@ const AnimeDetailsPage = () => {
                     <div className="flex items-center gap-2 mb-4">
                       <span className="w-2 h-2 rounded-full bg-violet-500" />
                       <span className="text-[11px] font-black text-violet-400 uppercase tracking-widest">
-                        Endings Â· {themes.endings.length}
+                        Endings · {themes.endings.length}
                       </span>
                     </div>
                     {themes.endings.map((t, i) => <ThemeLine key={i} index={i} text={t} type="ed" />)}
@@ -592,6 +614,7 @@ const AnimeDetailsPage = () => {
             </section>
           )}
 
+          {/* ── Related Anime ────────────────────────────────────────────── */}
           {Object.keys(relationsByType).length > 0 && (
             <section>
               <Heading>Related Anime</Heading>
@@ -606,7 +629,7 @@ const AnimeDetailsPage = () => {
                       <ul className="space-y-2">
                         {entries.map((entry) => (
                           <li key={entry.malId} className="flex items-start gap-2">
-                            <span className="text-gray-700 mt-1.5 shrink-0">â€º</span>
+                            <span className="text-gray-700 mt-1.5 shrink-0">›</span>
                             <Link to={`/anime/${entry.malId}`}
                               className="text-sm text-gray-400 hover:text-blue-300 transition-colors leading-relaxed">
                               {entry.name}
@@ -621,6 +644,7 @@ const AnimeDetailsPage = () => {
             </section>
           )}
 
+          {/* ── Recommendations ──────────────────────────────────────────── */}
           {recs.length > 0 && (
             <section>
               <Heading count={recs.length}>Recommendations</Heading>
@@ -630,6 +654,7 @@ const AnimeDetailsPage = () => {
             </section>
           )}
 
+          {/* ── External Links ────────────────────────────────────────────── */}
           {(anime.streamingLinks?.length > 0 || anime.externalLinks?.length > 0) && (
             <section>
               <Heading>Where to Watch & Links</Heading>

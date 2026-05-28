@@ -220,7 +220,7 @@ namespace Kiroku.Data.Contexts
                 .HasForeignKey(cv => cv.PersonId);
 
 
-            // Convert all table and property names to lowercase
+            // Convert all table and property names to lowercase (PostgreSQL style)
             foreach (var entity in modelBuilder.Model.GetEntityTypes())
             {
                 // Tables
