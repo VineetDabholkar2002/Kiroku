@@ -13,7 +13,8 @@ Kiroku lets you browse and discover anime, track your watchlist, and listen to o
 - **Anime Detail Pages** — Synopsis, information, trailer, characters & voice actors, theme songs, related anime, and recommendations
 - **Playlist Maker** — Load any user's anime list and get a full soundtrack playlist from their watchlist, filterable by status and searchable by song or anime name
 - **Spotify Integration** — OAuth 2.0 per-user authentication; playback uses the user's own Spotify token — app credentials never exposed to the browser
-- **Watchlist Tracking** — Track anime as Completed, Watching, or Plan to Watch with scores
+- **AI Chat Assistant** — local FastAPI + Ollama-powered KirokuBot for anime Q&A, recommendations, and streaming chat replies
+- **Watchlist Tracking** — Track anime as Completed, Watching, or Plan to Watch with scores and quick status buttons directly from anime cards and list views
 
 ---
 
@@ -33,9 +34,11 @@ Kiroku lets you browse and discover anime, track your watchlist, and listen to o
 | Technology | Details |
 |---|---|
 | .NET | 9 (ASP.NET Core) |
+| Python | FastAPI / uvicorn served by `backend/Kiroku.Chat` for the local anime chat assistant |
 | Architecture | Clean Architecture (API / Application / Domain / Infrastructure / Data) |
 | Database | PostgreSQL (via Entity Framework Core + Npgsql) |
 | Cache | Redis (StackExchange.Redis) |
+| Local AI | Ollama model inference via local `llama3.1:8b` integration |
 | External APIs | Spotify Web API, Jikan (MyAnimeList) |
 | Docs | Swagger / OpenAPI |
 
@@ -58,7 +61,10 @@ Kiroku/
     ├── Kiroku.Application/     # Services, DTOs, interfaces
     ├── Kiroku.Domain/          # Entities (Anime, User, Character, etc.)
     ├── Kiroku.Infrastructure/  # SpotifyService, RedisCacheService
+    ├── Kiroku.Chat/            # Python FastAPI chat assistant and Ollama integration
     └── Kiroku.Data/            # AppDbContext, Migrations, Seeders
+└── docs/                       # Developer documentation and service notes
+└── scripts/                    # Local startup / stop helpers for Ollama, Redis, Chat
 ```
 
 ---
@@ -72,6 +78,20 @@ Kiroku/
 - [PostgreSQL](https://www.postgresql.org/)
 - [Redis](https://redis.io/)
 - A [Spotify Developer App](https://developer.spotify.com/dashboard) with a redirect URI set to `http://127.0.0.1:5173/callback`
+
+---
+
+### Root helper scripts
+From the repository root, these scripts help start and stop required local services:
+```bash
+npm run services
+scripts\start-all-dev.cmd
+scripts\stop-dev-services.cmd
+```
+
+`npm run services` will start Ollama, ensure the local model is downloaded, start Redis, and attempt to start the local FastAPI chat service in `backend/Kiroku.Chat`.
+`start-all-dev.cmd` is a helper wrapper that also launches the same environment.
+`stop-dev-services.cmd` shuts down Kiroku.Chat, Ollama, and Redis.
 
 ---
 
@@ -119,11 +139,11 @@ Kiroku/
    ```
    The FastAPI chat service will be available at `http://127.0.0.1:8000`.
 
-6. **Auto-start Ollama + model + Redis:**
+6. **Auto-start Ollama + model + Redis + Chat service:**
    ```bash
    npm run services
    ```
-   This starts `ollama serve` if needed, pulls `llama3.1:8b` if it is missing, and starts Redis on port `6379`.
+   This starts `ollama serve` if needed, pulls `llama3.1:8b` if it is missing, starts Redis on port `6379`, and ensures the local FastAPI chat service is running.
    If `redis-server` is not installed locally, the script falls back to a Docker container named `kiroku-redis`.
 
 ---
@@ -187,22 +207,56 @@ This means Spotify API rate limits are per-user, not per-app, and the app scales
 |---|---|---|
 | `GET` | `/api/v1/anime/popular` | Popular anime (paginated) |
 | `GET` | `/api/v1/anime/top-rated` | Top rated anime (paginated) |
-| `GET` | `/api/v1/anime/airing` | Currently airing (paginated) |
+| `GET` | `/api/v1/anime/airing` | Currently airing anime (paginated) |
 | `GET` | `/api/v1/anime/upcoming` | Upcoming anime (paginated) |
-| `GET` | `/api/v1/anime/favourites` | Most favourited (paginated) |
-| `GET` | `/api/v1/anime/search?query=` | Search by title |
-| `GET` | `/api/v1/anime/:id` | Anime detail (full) |
-| `GET` | `/api/v1/anime/:id/characters` | Characters & voice actors |
-| `GET` | `/api/v1/anime/:id/themes` | Opening & ending songs |
-| `GET` | `/api/v1/anime/:id/recommendations` | Recommendations |
-| `GET` | `/api/v1/playlist/:username` | User's anime soundtrack playlist |
-| `GET` | `/api/v1/spotify/song` | Search Spotify (requires user Bearer token) |
+| `GET` | `/api/v1/anime/favourites` | Most favourited anime (paginated) |
+| `GET` | `/api/v1/anime/search` | Search anime by title |
+| `GET` | `/api/v1/anime/genre/{genreId}` | Anime by genre (paginated) |
+| `GET` | `/api/v1/anime/studio/{studioId}` | Anime by studio (paginated) |
+| `GET` | `/api/v1/anime/tags` | Tag list / genre metadata |
+| `GET` | `/api/v1/anime/{id}` | Anime detail (full) |
+| `GET` | `/api/v1/anime/{id}/characters` | Characters & voice actors |
+| `GET` | `/api/v1/anime/{id}/themes` | Opening & ending songs |
+| `GET` | `/api/v1/anime/{id}/recommendations` | Recommendations |
+| `POST` | `/api/v1/user/login` | User login |
+| `GET` | `/api/v1/user/{userId}` | User profile by ID |
+| `GET` | `/api/v1/user/{userId}/anime-list` | User anime list by ID |
+| `GET` | `/api/v1/user/by-username/{username}` | User profile by username |
+| `GET` | `/api/v1/user/by-username/{username}/anime-list` | User anime list by username |
+| `PUT` | `/api/v1/user/by-username/{username}/anime-list` | Add/update anime list entry |
+| `GET` | `/api/v1/user/{username}/playlist` | User anime soundtrack playlist |
+| `GET` | `/api/v1/spotify/song` | Search Spotify tracks |
 | `GET` | `/api/v1/spotifyauth/login` | Get Spotify OAuth URL |
-| `POST` | `/api/v1/spotifyauth/callback` | Exchange code for token |
+| `POST` | `/api/v1/spotifyauth/callback` | Exchange Spotify auth code for token |
 | `POST` | `/api/v1/spotifyauth/refresh` | Refresh access token |
 | `POST` | `/api/v1/spotifyauth/logout` | Revoke session |
 | `POST` | `/chat` | Stream anime-only chat replies from the FastAPI chat service |
 | `GET` | `/health` | Health check for the FastAPI chat service |
+
+### Query & request parameters
+
+- `page` (int) — page number for paginated list endpoints
+- `per_page` (int) — page size for paginated list endpoints
+- `query` (string) — search text for `/api/v1/anime/search`
+- `genreId` (int) — genre MAL ID for `/api/v1/anime/genre/{genreId}`
+- `studioId` (int) — studio MAL ID for `/api/v1/anime/studio/{studioId}`
+- `type` (string) — optional tag type filter for `/api/v1/anime/tags`
+- `limit` (int) — max number of tags returned by `/api/v1/anime/tags`
+- `name` (string, required) — Spotify track name for `/api/v1/spotify/song`
+- `artist` (string, optional) — Spotify artist name for `/api/v1/spotify/song`
+
+### Body payloads
+
+- `POST /api/v1/user/login`
+  - `username`: string
+  - `password`: string
+- `PUT /api/v1/user/by-username/{username}/anime-list`
+  - `animeMalId`: integer
+  - `status`: string (`Watching`, `Completed`, `Plan to Watch`, `Dropped`)
+  - `score`: integer
+- `POST /api/v1/spotifyauth/callback`
+  - `code`: string
+  - `redirectUri`: string
 
 ---
 

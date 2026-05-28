@@ -1,8 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "../skeletons/Navbar";
 import useAnimeData from "../hooks/useAnimeData";
 import { Link } from "react-router-dom";
 import { FaFire } from "react-icons/fa";
+import AnimeListStatusControl from "../components/AnimeListStatusControl";
+import axios from "axios";
+import { useAuth } from "../context/AuthContext";
 
 const getImg = (anime) =>
   anime?.Images?.find(i => i.Format === "jpg")?.ImageUrl ||
