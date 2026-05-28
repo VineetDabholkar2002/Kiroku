@@ -1,5 +1,26 @@
 # Kiroku 記録
 
+**Home Page**
+![Home Page](docs/images/MainPage.png)
+
+**Popular Anime**
+![Popular Page](docs/images/PopularPage.png)
+
+**Search**
+![Search Page](docs/images/SearchPage.png)
+
+**Playlist Maker**
+![Playlist Page](docs/images/PlaylistPage.png)
+
+**Spotify Player**
+![Spotify Player](docs/images/SongPlayer.png)
+
+**Anime Details**
+![Anime Details](docs/images/DetailsPage1.png)
+
+![Anime Details](docs/images/DetailsPage2.png)
+---
+
 > A full-stack anime tracking and discovery platform with integrated Spotify soundtrack playlists.
 
 Kiroku lets you browse and discover anime, track your watchlist, and listen to opening/ending themes through your own Spotify account — all in a modern, dark UI.
@@ -273,28 +294,6 @@ appsettings.Production.json
 
 ---
 
-## Screenshots
-
-**Home Page**
-![Home Page](docs/images/MainPage.png)
-
-**Popular Anime**
-![Popular Page](docs/images/PopularPage.png)
-
-**Search**
-![Search Page](docs/images/SearchPage.png)
-
-**Playlist Maker**
-![Playlist Page](docs/images/PlaylistPage.png)
-
-**Spotify Player**
-![Spotify Player](docs/images/SongPlayer.png)
-
-**Anime Details**
-![Anime Details](docs/images/DetailsPage1.png)
-
-![Anime Details](docs/images/DetailsPage2.png)
----
 
 ## License
 
