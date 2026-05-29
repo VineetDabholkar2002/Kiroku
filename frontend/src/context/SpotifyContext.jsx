@@ -13,9 +13,9 @@ export const useSpotify = () => {
 const REFRESH_BUFFER_MS = 2 * 60 * 1000;
 
 export const SpotifyProvider = ({ children }) => {
-  // ── Playlist / playback ───────────────────────────────────────────────────
   const [playlist, setPlaylist]                   = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(null);
+  const [currentSpotifyTrack, setCurrentSpotifyTrack] = useState(null); // The actual Spotify track data for the iframe
   const [isPlaying, setIsPlaying]                 = useState(false);
   const [playKey, setPlayKey]                     = useState(0); // increments on every play to force iframe remount
 
@@ -155,14 +155,8 @@ export const SpotifyProvider = ({ children }) => {
 
   // ── Playback helpers ──────────────────────────────────────────────────────
   const playTrackAtIndex = useCallback((index, trackData = null) => {
-    if (trackData) {
-      setPlaylist((prev) => {
-        const updated = [...prev];
-        updated[index] = trackData;
-        return updated;
-      });
-    }
     setCurrentTrackIndex(index);
+    if (trackData) setCurrentSpotifyTrack(trackData);
     setIsPlaying(true);
     setPlayKey((k) => k + 1); // force SpotifyBar iframe to remount even if same song
   }, []);
@@ -209,6 +203,7 @@ export const SpotifyProvider = ({ children }) => {
         setPlaylist,
         currentTrackIndex,
         currentTrack,
+        currentSpotifyTrack,
         isPlaying,
         playKey,
         playTrackAtIndex,

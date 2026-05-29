@@ -348,7 +348,6 @@ export default function PlaylistMaker() {
       setHasMore(data.length > PAGE_SIZE);
       setFetchedUsername(trimmed);
       setPlaylist(data);
-      setCurrentTrackIndex(null); // reset player when new playlist loaded
     } catch {
       setError(`Could not load playlist for "${trimmed}".`);
     } finally {
@@ -758,7 +757,7 @@ export default function PlaylistMaker() {
                     key={song.id ?? `${song.name}-${index}`}
                     song={song}
                     index={index}
-                    isCurrent={index === currentTrackIndex}
+                    isCurrent={currentTrack?.name === song.name && currentTrack?.animeTitle === song.animeTitle}
                     canPlay={isSpotifyConnected}
                     onPlay={() => handlePlay(song)}
                   />

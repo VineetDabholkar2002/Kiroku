@@ -1,11 +1,11 @@
 import { useSpotify } from "../context/SpotifyContext";
 
 export default function SpotifyBar() {
-  const { currentTrack, playKey } = useSpotify();
+  const { currentSpotifyTrack, playKey } = useSpotify();
 
-  if (!currentTrack?.uri) return null;
+  if (!currentSpotifyTrack?.uri) return null;
 
-  const trackId = currentTrack.uri.split(":")[2];
+  const trackId = currentSpotifyTrack.uri.split(":")[2];
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-gray-900 p-2 flex items-center gap-4 shadow-lg z-50">
@@ -19,11 +19,11 @@ export default function SpotifyBar() {
         className="rounded-md"
       />
       <div className="flex flex-col ml-4 overflow-hidden">
-        <span className="text-white font-semibold truncate max-w-xs">{currentTrack.name}</span>
+        <span className="text-white font-semibold truncate max-w-xs">{currentSpotifyTrack.name}</span>
         <span className="text-gray-400 text-sm truncate max-w-xs">
-          {Array.isArray(currentTrack.artists)
-            ? currentTrack.artists.join(", ")
-            : currentTrack.artists}
+          {Array.isArray(currentSpotifyTrack.artists)
+            ? currentSpotifyTrack.artists.join(", ")
+            : currentSpotifyTrack.artists}
         </span>
       </div>
     </div>
