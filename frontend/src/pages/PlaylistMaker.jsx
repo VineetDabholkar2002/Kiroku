@@ -348,6 +348,7 @@ export default function PlaylistMaker() {
       setHasMore(data.length > PAGE_SIZE);
       setFetchedUsername(trimmed);
       setPlaylist(data);
+      setCurrentTrackIndex(null); // reset player when new playlist loaded
     } catch {
       setError(`Could not load playlist for "${trimmed}".`);
     } finally {
@@ -414,20 +415,27 @@ export default function PlaylistMaker() {
     return () => obs.unobserve(target);
   }, [loadMore, fetchedUsername]);
 
-  const handlePlay = useCallback(async (index, song) => {
+  const handlePlay = useCallback(async (song) => {
     if (!isSpotifyConnected) { connectSpotify(); return; }
     try {
       const { data } = await axios.get("/api/v1/spotify/song", {
         params: { name: song.name, artist: Array.isArray(song.artist) ? song.artist[0] : song.artist },
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (data?.tracks?.length > 0) playTrackAtIndex(index, data.tracks[0]);
-      else alert("Song not found on Spotify.");
+      if (data?.tracks?.length > 0) {
+        // Find the real index in allSongs so the context playlist stays in sync
+        const realIndex = allSongs.findIndex(
+          (s) => s.name === song.name && s.animeTitle === song.animeTitle
+        );
+        playTrackAtIndex(realIndex >= 0 ? realIndex : 0, data.tracks[0]);
+      } else {
+        alert("Song not found on Spotify.");
+      }
     } catch (err) {
       if (err.response?.status === 401) { alert("Spotify session expired. Please reconnect."); disconnectSpotify(); }
       else alert("Spotify search failed. Please try again.");
     }
-  }, [isSpotifyConnected, accessToken, connectSpotify, disconnectSpotify, playTrackAtIndex]);
+  }, [isSpotifyConnected, accessToken, allSongs, connectSpotify, disconnectSpotify, playTrackAtIndex]);
 
   const handleSaveToSpotify = useCallback(async () => {
     if (!fetchedUsername || allSongs.length === 0 || savingPlaylist) return;
@@ -752,7 +760,7 @@ export default function PlaylistMaker() {
                     index={index}
                     isCurrent={index === currentTrackIndex}
                     canPlay={isSpotifyConnected}
-                    onPlay={() => handlePlay(index, song)}
+                    onPlay={() => handlePlay(song)}
                   />
                 ))}
               </div>
