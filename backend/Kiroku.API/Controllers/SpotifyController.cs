@@ -340,9 +340,9 @@ namespace Kiroku.API.Controllers
             var userToken = authHeader["Bearer ".Length..].Trim();
             var cacheKey = $"spotify:search:{name.ToLower()}:{artist?.ToLower() ?? ""}";
 
-            var cached = await _cache.GetAsync<object>(cacheKey);
+            var cached = await _cache.GetAsync<JObject>(cacheKey);
             if (cached != null)
-                return Ok(cached);
+                return Content(cached.ToString(Newtonsoft.Json.Formatting.None), "application/json");
 
             try
             {
