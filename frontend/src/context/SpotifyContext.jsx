@@ -17,6 +17,7 @@ export const SpotifyProvider = ({ children }) => {
   const [playlist, setPlaylist]                   = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(null);
   const [isPlaying, setIsPlaying]                 = useState(false);
+  const [playKey, setPlayKey]                     = useState(0); // increments on every play to force iframe remount
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   // accessToken : short-lived, kept in memory only (never localStorage)
@@ -163,6 +164,7 @@ export const SpotifyProvider = ({ children }) => {
     }
     setCurrentTrackIndex(index);
     setIsPlaying(true);
+    setPlayKey((k) => k + 1); // force SpotifyBar iframe to remount even if same song
   }, []);
 
   const playNext = useCallback(() => {
@@ -208,6 +210,7 @@ export const SpotifyProvider = ({ children }) => {
         currentTrackIndex,
         currentTrack,
         isPlaying,
+        playKey,
         playTrackAtIndex,
         playNext,
         playPrevious,

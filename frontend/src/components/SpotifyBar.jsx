@@ -1,7 +1,7 @@
 import { useSpotify } from "../context/SpotifyContext";
 
 export default function SpotifyBar() {
-  const { currentTrack } = useSpotify();
+  const { currentTrack, playKey } = useSpotify();
 
   if (!currentTrack?.uri) return null;
 
@@ -10,7 +10,7 @@ export default function SpotifyBar() {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-gray-900 p-2 flex items-center gap-4 shadow-lg z-50">
       <iframe
-        key={trackId}
+        key={`${trackId}-${playKey}`}
         src={`https://open.spotify.com/embed/track/${trackId}?autoplay=1`}
         width="350"
         height="80"
