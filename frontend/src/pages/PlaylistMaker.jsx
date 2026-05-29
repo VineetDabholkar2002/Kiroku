@@ -308,7 +308,7 @@ function EmptyHero() {
 
 export default function PlaylistMaker() {
   const {
-    setPlaylist, currentTrackIndex, playTrackAtIndex,
+    setPlaylist, currentTrackIndex, currentTrack, playTrackAtIndex,
     isSpotifyConnected, accessToken, spotifyUser,
     connectSpotify, disconnectSpotify,
   } = useSpotify();
