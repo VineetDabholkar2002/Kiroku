@@ -52,7 +52,7 @@ function AppRoutes() {
           <Route path="/playlist" element={<ProtectedRoute><PlaylistMaker /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
           <Route path="/tags" element={<ProtectedRoute><TagsPage /></ProtectedRoute>} />
-          <Route path="/callback" element={<ProtectedRoute><SpotifyCallback /></ProtectedRoute>} />
+          <Route path="/callback" element={<SpotifyCallback />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

@@ -27,9 +27,13 @@ const SpotifyCallback = () => {
       return;
     }
 
-    handleCallback(code, state).then(() => {
-      navigate("/playlist");
-    });
+    handleCallback(code, state)
+      .then(() => {
+        navigate("/playlist");
+      })
+      .catch(() => {
+        navigate("/?spotify_error=callback_failed");
+      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
