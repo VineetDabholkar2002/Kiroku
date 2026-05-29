@@ -86,22 +86,22 @@ using (var scope = app.Services.CreateScope())
     //await animeSeeder.SeedAsync();
 }
 
-// Enable Swagger UI in development
-if (app.Environment.IsDevelopment())
+// Enable Swagger UI
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Kiroku API v1");
-        options.RoutePrefix = string.Empty;
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Kiroku API v1");
+    options.RoutePrefix = string.Empty;
+});
 
 // Enable CORS
 app.UseCors("AllowAll");
 
 // Enable HTTPS and controller mapping
-app.UseHttpsRedirection();
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthorization();
 app.MapControllers();
 

@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://kiroku-api.onrender.com/api/:path*"
+    },
+    {
+      "source": "/chat-api/:path*",
+      "destination": "http://127.0.0.1:8000/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
