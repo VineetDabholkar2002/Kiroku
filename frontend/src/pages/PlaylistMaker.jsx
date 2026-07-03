@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from "react";
 import axios from "axios";
 import Navbar from "../skeletons/Navbar";
-import { FaSortAlphaDown, FaSortAlphaUp, FaSearch, FaPlay, FaSpotify, FaMusic, FaPause } from "react-icons/fa";
+import { FaSortAlphaDown, FaSortAlphaUp, FaSearch, FaPlay, FaSpotify, FaMusic, FaPause, FaCopy } from "react-icons/fa";
 import { HiSparkles } from "react-icons/hi2";
 import { useSpotify } from "../context/SpotifyContext";
 
@@ -151,7 +151,7 @@ function SpotifyConnectBanner({ onConnect }) {
             <FaSpotify className="text-emerald-400 text-xl" />
           </div>
           <div>
-            <p className="text-white font-semibold">Connect Spotify to enable playback</p>
+            <p className="text-white font-semibold">Connect Spotify to save playlists</p>
             <p className="text-gray-500 text-sm mt-0.5">Your account's own token is used — credentials never touch our servers.</p>
           </div>
         </div>
@@ -320,6 +320,7 @@ export default function PlaylistMaker() {
   const [userSuggestions, setUserSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [fetchedUsername, setFetchedUsername] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
   const [searchQuery, setSearchQuery]         = useState("");
   const [searchMode, setSearchMode]           = useState("both");
   const [statusFilter, setStatusFilter]       = useState("all");
@@ -415,11 +416,9 @@ export default function PlaylistMaker() {
   }, [loadMore, fetchedUsername]);
 
   const handlePlay = useCallback(async (song) => {
-    if (!isSpotifyConnected) { connectSpotify(); return; }
     try {
       const { data } = await axios.get("/api/v1/spotify/song", {
         params: { name: song.name, artist: Array.isArray(song.artist) ? song.artist[0] : song.artist },
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (data?.tracks?.length > 0) {
         // Find the real index in allSongs so the context playlist stays in sync
@@ -431,10 +430,27 @@ export default function PlaylistMaker() {
         alert("Song not found on Spotify.");
       }
     } catch (err) {
-      if (err.response?.status === 401) { alert("Spotify session expired. Please reconnect."); disconnectSpotify(); }
-      else alert("Spotify search failed. Please try again.");
+      alert("Spotify search failed. Please try again.");
     }
-  }, [isSpotifyConnected, accessToken, allSongs, connectSpotify, disconnectSpotify, playTrackAtIndex]);
+  }, [allSongs, playTrackAtIndex]);
+
+  const handleExportText = useCallback(() => {
+    if (allSongs.length === 0) return;
+    setShowExportModal(true);
+  }, [allSongs]);
+
+  const confirmExport = useCallback(() => {
+    const textList = allSongs
+      .map((song) => `${song.name} - ${song.artist} (${song.animeTitle})`)
+      .join("\n");
+      
+    navigator.clipboard.writeText(textList)
+      .then(() => {
+        setShowExportModal(false);
+        window.open("https://www.tunemymusic.com/transfer", "_blank");
+      })
+      .catch(() => alert("Failed to copy playlist to clipboard."));
+  }, [allSongs]);
 
   const handleSaveToSpotify = useCallback(async () => {
     if (!fetchedUsername || allSongs.length === 0 || savingPlaylist) return;
@@ -601,10 +617,19 @@ export default function PlaylistMaker() {
           </div>
 
           <div className="flex flex-col items-stretch sm:items-end gap-2.5 w-full sm:w-auto">
-            {isSpotifyConnected && (
-              <div className="self-start sm:self-end flex items-center gap-2">
-                <SpotifyUserPill user={spotifyUser} onDisconnect={disconnectSpotify} />
-                {fetchedUsername && allSongs.length > 0 && (
+            <div className="self-start sm:self-end flex flex-wrap items-center gap-2">
+              {isSpotifyConnected && <SpotifyUserPill user={spotifyUser} onDisconnect={disconnectSpotify} />}
+              
+              {fetchedUsername && allSongs.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleExportText}
+                    className="flex items-center gap-2 rounded-full bg-gray-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-600"
+                  >
+                    <FaCopy className="text-sm" />
+                    Copy as Text
+                  </button>
                   <button
                     type="button"
                     onClick={handleSaveToSpotify}
@@ -614,9 +639,9 @@ export default function PlaylistMaker() {
                     <FaSpotify className="text-sm" />
                     {savingPlaylist ? "Saving..." : "Save to Spotify"}
                   </button>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
             <div className="flex gap-2">
               <div className="flex flex-1 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04]
                 px-3.5 py-2.5 focus-within:border-blue-500/40 focus-within:bg-white/[0.06] transition-all min-w-[180px]">
@@ -758,7 +783,7 @@ export default function PlaylistMaker() {
                     song={song}
                     index={index}
                     isCurrent={currentTrack?.name === song.name && currentTrack?.animeTitle === song.animeTitle}
-                    canPlay={isSpotifyConnected}
+                    canPlay={true}
                     onPlay={() => handlePlay(song)}
                   />
                 ))}
@@ -781,6 +806,41 @@ export default function PlaylistMaker() {
 
             <div ref={observerRef} className="h-4" aria-hidden />
           </>
+        )}
+        
+        {showExportModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                <FaCopy className="text-emerald-400" /> Export Playlist
+              </h2>
+              <p className="text-gray-300 text-sm mb-4 leading-relaxed">
+                If Spotify blocks you from logging in directly, you can easily create your playlist using a free third-party tool!
+              </p>
+              
+              <ol className="list-decimal list-inside text-sm text-gray-400 space-y-3 mb-6 bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
+                <li>Click <strong>Copy Playlist</strong> below.</li>
+                <li>Go to <a href="https://www.tunemymusic.com/transfer" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline font-semibold">TuneMyMusic.com</a>.</li>
+                <li>Select <strong>From File / Free Text</strong> and paste your copied list.</li>
+                <li>Select <strong>Spotify</strong> as your destination to finish!</li>
+              </ol>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 bg-gray-700 hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmExport}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold text-black bg-emerald-400 hover:bg-emerald-300 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                >
+                  <FaCopy /> Copy & Open TuneMyMusic
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

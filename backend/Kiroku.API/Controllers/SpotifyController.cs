@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using System.Net.Http.Headers;
 using System.Text;
+using Kiroku.Infrastructure.Services;
 
 namespace Kiroku.API.Controllers
 {
@@ -13,11 +14,13 @@ namespace Kiroku.API.Controllers
     {
         private readonly HttpClient _httpClient;
         private readonly ICacheService _cache;
+        private readonly SpotifyService _spotifyService;
 
-        public SpotifyController(IHttpClientFactory httpClientFactory, ICacheService cache)
+        public SpotifyController(IHttpClientFactory httpClientFactory, ICacheService cache, SpotifyService spotifyService)
         {
             _httpClient = httpClientFactory.CreateClient();
             _cache = cache;
+            _spotifyService = spotifyService;
         }
 
         [HttpPost("playlist")]
@@ -321,8 +324,7 @@ namespace Kiroku.API.Controllers
         }
 
         /// <summary>
-        /// Search for a track using the USER'S own Spotify access token.
-        /// The token is passed as a Bearer token in the Authorization header.
+        /// Search for a track using the APP'S own Client Credentials token.
         /// Results are cached by query so repeated searches hit Redis, not Spotify.
         /// </summary>
         [HttpGet("song")]
@@ -333,11 +335,6 @@ namespace Kiroku.API.Controllers
             if (string.IsNullOrWhiteSpace(name))
                 return BadRequest(new { message = "Song name is required." });
 
-            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
-                return Unauthorized(new { message = "Spotify access token required. Please connect your Spotify account." });
-
-            var userToken = authHeader["Bearer ".Length..].Trim();
             var cacheKey = $"spotify:search:{name.ToLower()}:{artist?.ToLower() ?? ""}";
 
             var cached = await _cache.GetAsync<JObject>(cacheKey);
@@ -346,25 +343,7 @@ namespace Kiroku.API.Controllers
 
             try
             {
-                var q = !string.IsNullOrWhiteSpace(artist)
-                    ? $"track:{name} artist:{artist}"
-                    : $"track:{name}";
-
-                var uri = $"https://api.spotify.com/v1/search?q={Uri.EscapeDataString(q)}&type=track&limit=1";
-
-                using var req = new HttpRequestMessage(HttpMethod.Get, uri);
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
-
-                var response = await _httpClient.SendAsync(req);
-                var body = await response.Content.ReadAsStringAsync();
-
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    return Unauthorized(new { message = "Spotify token expired. Please reconnect." });
-
-                if (!response.IsSuccessStatusCode)
-                    return StatusCode((int)response.StatusCode, new { message = "Spotify search failed.", detail = body });
-
-                var json = JObject.Parse(body);
+                var json = await _spotifyService.SearchTrackAsync(name, artist);
                 var items = json["tracks"]?["items"];
 
                 if (items == null || !items.HasValues)
