@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Layout from "./components/Layout";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SpotifyProvider } from "./context/SpotifyContext";
 
@@ -10,11 +11,13 @@ const UpcomingPage = lazy(() => import("./pages/UpcomingPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const AnimeDetailPage = lazy(() => import("./pages/AnimeDetailPage"));
+const CharacterPage = lazy(() => import("./pages/CharacterPage"));
+const PersonPage = lazy(() => import("./pages/PersonPage"));
 const PopularPage = lazy(() => import("./pages/PopularPage"));
 const FavoritesPage = lazy(() => import("./pages/FavouritesPage"));
 const TopRatedPage = lazy(() => import("./pages/TopRatedPage"));
 const AiringPage = lazy(() => import("./pages/AiringPage"));
-const PlaylistMaker = lazy(() => import("./pages/PlaylistMaker"));
+const SoundtracksPage = lazy(() => import("./pages/SoundtracksPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
 const TagsPage = lazy(() => import("./pages/TagsPage"));
 const SpotifyCallback = lazy(() => import("./pages/SpotifyCallback"));
@@ -42,6 +45,8 @@ function AppRoutes() {
           <Route path="/" element={<MainPage />} />
           <Route path="/login" element={isAuthenticated ? <Navigate to="/popular" replace /> : <LoginPage />} />
           <Route path="/anime/:id" element={<ProtectedRoute><AnimeDetailPage /></ProtectedRoute>} />
+          <Route path="/character/:id" element={<ProtectedRoute><CharacterPage /></ProtectedRoute>} />
+          <Route path="/person/:id" element={<ProtectedRoute><PersonPage /></ProtectedRoute>} />
           <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/upcoming" element={<ProtectedRoute><UpcomingPage /></ProtectedRoute>} />
@@ -49,7 +54,7 @@ function AppRoutes() {
           <Route path="/popular" element={<ProtectedRoute><PopularPage /></ProtectedRoute>} />
           <Route path="/favourites" element={<ProtectedRoute><FavoritesPage /></ProtectedRoute>} />
           <Route path="/top-rated" element={<ProtectedRoute><TopRatedPage /></ProtectedRoute>} />
-          <Route path="/playlist" element={<ProtectedRoute><PlaylistMaker /></ProtectedRoute>} />
+          <Route path="/soundtracks" element={<ProtectedRoute><SoundtracksPage /></ProtectedRoute>} />
           <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
           <Route path="/tags" element={<ProtectedRoute><TagsPage /></ProtectedRoute>} />
           <Route path="/callback" element={<SpotifyCallback />} />
@@ -66,17 +71,17 @@ function AppRoutes() {
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <AuthProvider>
-        <SpotifyProvider>
-          <Router>
-            <ErrorBoundary>
+    <AuthProvider>
+      <SpotifyProvider>
+        <Router>
+          <ErrorBoundary>
+            <Layout>
               <AppRoutes />
-            </ErrorBoundary>
-          </Router>
-        </SpotifyProvider>
-      </AuthProvider>
-    </div>
+            </Layout>
+          </ErrorBoundary>
+        </Router>
+      </SpotifyProvider>
+    </AuthProvider>
   );
 }
 

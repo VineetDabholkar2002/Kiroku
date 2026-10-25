@@ -13,7 +13,6 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     // Log error to console; consider sending to external monitoring
     // in production (Sentry, LogRocket, etc.)
-    // eslint-disable-next-line no-console
     console.error('ErrorBoundary caught an error', error, info);
   }
 
@@ -28,7 +27,7 @@ class ErrorBoundary extends React.Component {
           <div className="mt-4 flex gap-3">
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500"
+              className="px-4 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-semibold rounded-lg shadow-md shadow-rose-500/20"
             >
               Reload
             </button>

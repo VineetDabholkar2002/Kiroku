@@ -7,8 +7,9 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Starting Kiroku services..." -ForegroundColor Cyan
 
-if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-    throw "Ollama is not installed or not on PATH."
+$hasOllama = (Get-Command ollama -ErrorAction SilentlyContinue) -ne $null
+if (-not $hasOllama) {
+    Write-Host "Ollama is not installed or not on PATH. AI local chat model will use cloud fallback." -ForegroundColor Yellow
 }
 
 function Ensure-ChatServiceRunning {
@@ -69,30 +70,34 @@ function Ensure-ChatServiceRunning {
     Write-Host "Kiroku.Chat was started but did not respond on $healthUrl yet." -ForegroundColor Yellow
 }
 
-& ollama list *> $null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Starting Ollama..." -ForegroundColor Yellow
-    Start-Process ollama -ArgumentList "serve" -WindowStyle Minimized | Out-Null
-    Start-Sleep -Seconds 3
-}
-
-$models = & ollama list
-if ($models -notmatch [regex]::Escape($Model)) {
-    Write-Host "Pulling model $Model..." -ForegroundColor Yellow
-    & ollama pull $Model
+if ($hasOllama) {
+    & ollama list *> $null
     if ($LASTEXITCODE -ne 0) {
-        throw "Failed to pull model $Model."
+        Write-Host "Starting Ollama..." -ForegroundColor Yellow
+        Start-Process ollama -ArgumentList "serve" -WindowStyle Minimized | Out-Null
+        Start-Sleep -Seconds 3
     }
-} else {
-    Write-Host "Model $Model already installed." -ForegroundColor Green
+
+    $models = & ollama list
+    if ($models -notmatch [regex]::Escape($Model)) {
+        Write-Host "Pulling model $Model..." -ForegroundColor Yellow
+        & ollama pull $Model
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to pull model $Model. Chat fallback will be used."
+        }
+    } else {
+        Write-Host "Model $Model already installed." -ForegroundColor Green
+    }
 }
 
 $redisUp = $false
-if (Get-Command redis-cli -ErrorAction SilentlyContinue) {
-    $pong = & redis-cli -p $RedisPort ping 2>$null
-    if ($LASTEXITCODE -eq 0 -and $pong -match "PONG") {
-        $redisUp = $true
-    }
+try {
+    $tcp = New-Object System.Net.Sockets.TcpClient
+    $tcp.Connect("127.0.0.1", $RedisPort)
+    $tcp.Close()
+    $redisUp = $true
+} catch {
+    $redisUp = $false
 }
 
 if (-not $redisUp) {
@@ -102,32 +107,57 @@ if (-not $redisUp) {
         Start-Sleep -Seconds 2
         $redisUp = $true
     } elseif (Get-Command docker -ErrorAction SilentlyContinue) {
-        Write-Host "Starting Redis with Docker..." -ForegroundColor Yellow
+        Write-Host "Checking Docker for Redis..." -ForegroundColor Yellow
         & docker version *> $null
         if ($LASTEXITCODE -ne 0) {
-            throw "Docker is installed but not running."
+            $dockerDesktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+            if (Test-Path $dockerDesktopPath) {
+                Write-Host "Launching Docker Desktop..." -ForegroundColor Yellow
+                Start-Process -FilePath $dockerDesktopPath
+                for ($i = 0; $i -lt 30; $i++) {
+                    Start-Sleep -Seconds 1
+                    & docker version *> $null
+                    if ($LASTEXITCODE -eq 0) { break }
+                }
+            }
         }
 
-        $containerName = "kiroku-redis"
-        $exists = (& docker ps -aq -f "name=^${containerName}$" 2>$null | Select-Object -First 1)
-
-        if ($exists) {
-            & docker start $containerName | Out-Null
-        } else {
-            & docker run -d --name $containerName -p "${RedisPort}:6379" redis:7-alpine | Out-Null
-        }
-
+        & docker version *> $null
         if ($LASTEXITCODE -ne 0) {
-            throw "Failed to start Redis container."
-        }
+            Write-Warning "Docker is installed but daemon is not running. In-memory cache fallback will be used."
+        } else {
+            $containerName = "kiroku-redis"
+            $exists = (& docker ps -aq -f "name=^${containerName}$" 2>$null | Select-Object -First 1)
 
-        Start-Sleep -Seconds 2
-        $redisUp = $true
+            if ($exists) {
+                Write-Host "Starting existing '$containerName' container..." -ForegroundColor Yellow
+                & docker start $containerName | Out-Null
+            } else {
+                Write-Host "Creating and starting '$containerName' container..." -ForegroundColor Yellow
+                & docker run -d --name $containerName -p "${RedisPort}:6379" --restart unless-stopped redis:alpine | Out-Null
+            }
+
+            for ($i = 0; $i -lt 10; $i++) {
+                try {
+                    $tcp = New-Object System.Net.Sockets.TcpClient
+                    $tcp.Connect("127.0.0.1", $RedisPort)
+                    $tcp.Close()
+                    $redisUp = $true
+                    break
+                } catch {
+                    Start-Sleep -Seconds 1
+                }
+            }
+        }
     } else {
-        throw "Redis is not installed and Docker is not available."
+        Write-Warning "Neither redis-server nor Docker found. In-memory cache fallback will be used."
     }
+}
+
+if ($redisUp) {
+    Write-Host "Redis is running on 127.0.0.1:$RedisPort." -ForegroundColor Green
 } else {
-    Write-Host "Redis already running." -ForegroundColor Green
+    Write-Host "Redis is not active. Backend will fall back to in-memory caching." -ForegroundColor Yellow
 }
 
 Ensure-ChatServiceRunning -ChatPort 8000

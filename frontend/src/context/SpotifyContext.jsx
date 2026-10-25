@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
+import api from "../services/api";
 
 const SpotifyContext = createContext();
 
@@ -28,7 +28,7 @@ export const SpotifyProvider = ({ children }) => {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError]     = useState(null);
 
-  // Refs — survive re-renders without causing them
+  // Refs - survive re-renders without causing them
   const refreshTimerRef = useRef(null);
   // Holds the latest refreshAccessToken fn so the setTimeout in scheduleRefresh
   // never captures a stale closure.
@@ -73,10 +73,10 @@ export const SpotifyProvider = ({ children }) => {
     if (!sid) return;
 
     try {
-      const { data } = await axios.post("/api/v1/spotifyauth/refresh", { sessionId: sid });
+      const { data } = await api.post("/api/v1/spotifyauth/refresh", { sessionId: sid });
       applyToken(data.access_token, data.expires_in);
     } catch {
-      // Session expired on the backend — user needs to reconnect
+      // Session expired on the backend - user needs to reconnect
       clearAuth();
     }
   }, [applyToken, clearAuth]);
@@ -97,26 +97,32 @@ export const SpotifyProvider = ({ children }) => {
   // ── Fetch Spotify user profile whenever we get a new token ────────────────
   useEffect(() => {
     if (!accessToken) return;
-    axios
+    api
       .get("https://api.spotify.com/v1/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       .then(({ data }) => setSpotifyUser(data))
-      .catch(() => {}); // non-critical — don't break the flow
+      .catch(() => {}); // non-critical - don't break the flow
   }, [accessToken]);
 
   // ── connectSpotify: kick off the OAuth redirect ───────────────────────────
   const connectSpotify = useCallback(async () => {
+    setAuthLoading(true);
     setAuthError(null);
     try {
-      const { data } = await axios.get("/api/v1/spotifyauth/login");
-      // Persist state for CSRF verification in the callback page
+      const redirectUri = `${window.location.origin}/callback`;
+      const { data } = await api.get(`/api/v1/spotifyauth/login?redirectUri=${encodeURIComponent(redirectUri)}`);
+      // Persist state & redirect URI for CSRF verification in the callback page
       sessionStorage.setItem("spotify_oauth_state", data.state);
+      sessionStorage.setItem("spotify_redirect_uri", data.redirectUri || redirectUri);
       // Hard redirect to Spotify's auth page
       window.location.href = data.authUrl;
     } catch (err) {
       console.error("Failed to start Spotify login:", err);
-      setAuthError("Could not reach the server. Please try again.");
+      const msg = err.response?.data?.message || "Could not reach the server. If the backend is waking up, please wait a moment and try again.";
+      setAuthError(msg);
+      setAuthLoading(false);
+      alert(msg);
     }
   }, []);
 
@@ -126,18 +132,23 @@ export const SpotifyProvider = ({ children }) => {
     setAuthError(null);
     try {
       const storedState = sessionStorage.getItem("spotify_oauth_state");
-      if (state !== storedState) throw new Error("State mismatch — possible CSRF attack.");
+      if (state !== storedState) throw new Error("State mismatch - possible CSRF attack.");
       sessionStorage.removeItem("spotify_oauth_state");
 
-      const { data } = await axios.post("/api/v1/spotifyauth/callback", { code, state });
+      const redirectUri = sessionStorage.getItem("spotify_redirect_uri") || `${window.location.origin}/callback`;
+      sessionStorage.removeItem("spotify_redirect_uri");
 
-      // Only the opaque session_id goes to localStorage — never the refresh token
+      const { data } = await api.post("/api/v1/spotifyauth/callback", { code, state, redirectUri });
+
+      // Only the opaque session_id goes to localStorage - never the refresh token
       localStorage.setItem("spotify_session_id", data.session_id);
       applyToken(data.access_token, data.expires_in);
     } catch (err) {
       console.error("Spotify callback error:", err);
-      setAuthError("Spotify login failed. Please try again.");
+      const msg = err.response?.data?.message || "Spotify login failed. Please try again.";
+      setAuthError(msg);
       clearAuth();
+      throw err;
     } finally {
       setAuthLoading(false);
     }
@@ -148,7 +159,7 @@ export const SpotifyProvider = ({ children }) => {
     const sid = localStorage.getItem("spotify_session_id");
     if (sid) {
       // Ask backend to delete the refresh token from Redis (best-effort)
-      await axios.post("/api/v1/spotifyauth/logout", { sessionId: sid }).catch(() => {});
+      await api.post("/api/v1/spotifyauth/logout", { sessionId: sid }).catch(() => {});
     }
     clearAuth();
   }, [clearAuth]);

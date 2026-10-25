@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import axios from "axios";
-import Navbar from "../skeletons/Navbar";
+import api from "../services/api";
 import { Grid, PageShell, Row } from "./PopularPage";
+import { FaTag, FaStar } from "react-icons/fa";
 
-const getImg = (anime) =>
-  anime?.Images?.find((i) => i.Format === "jpg")?.ImageUrl ||
-  anime?.Images?.[0]?.ImageUrl ||
-  "/placeholder-anime.jpg";
+const getImg = (anime) => {
+  const images = anime?.images || anime?.Images;
+  return (
+    images?.find((i) => (i.format || i.Format)?.toLowerCase() === "jpg")?.imageUrl ||
+    images?.find((i) => (i.format || i.Format)?.toLowerCase() === "jpg")?.ImageUrl ||
+    images?.[0]?.imageUrl ||
+    images?.[0]?.ImageUrl ||
+    "/placeholder-anime.jpg"
+  );
+};
 
 const SORT_OPTIONS = [
   { key: "popularity", label: "Popularity" },
@@ -32,12 +38,12 @@ export default function TagsPage() {
     const loadAnime = async () => {
       try {
         setLoading(true);
-        const { data } = await axios.get(`/api/v1/anime/genre/${tagId}`, {
+        const { data } = await api.get(`/api/v1/anime/genre/${tagId}`, {
           params: { page: 1, per_page: 48 },
         });
         setAnimeList(data.data ?? []);
-      } catch (error) {
-        console.error(error);
+      } catch {
+        // Tag query failed or cancelled
       } finally {
         setLoading(false);
       }
@@ -50,46 +56,43 @@ export default function TagsPage() {
     const items = [...animeList];
     switch (sortBy) {
       case "score":
-        return items.sort((a, b) => (b.Score ?? 0) - (a.Score ?? 0));
+        return items.sort((a, b) => (b.score ?? b.Score ?? 0) - (a.score ?? a.Score ?? 0));
       case "rank":
-        return items.sort((a, b) => (a.Rank ?? Number.MAX_SAFE_INTEGER) - (b.Rank ?? Number.MAX_SAFE_INTEGER));
+        return items.sort((a, b) => (a.rank ?? a.Rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? b.Rank ?? Number.MAX_SAFE_INTEGER));
       case "title":
-        return items.sort((a, b) => (a.Title ?? "").localeCompare(b.Title ?? ""));
+        return items.sort((a, b) => (a.title ?? a.Title ?? "").localeCompare(b.title ?? b.Title ?? ""));
       case "popularity":
       default:
-        return items.sort((a, b) => (a.Popularity ?? Number.MAX_SAFE_INTEGER) - (b.Popularity ?? Number.MAX_SAFE_INTEGER));
+        return items.sort((a, b) => (a.popularity ?? a.Popularity ?? Number.MAX_SAFE_INTEGER) - (b.popularity ?? b.Popularity ?? Number.MAX_SAFE_INTEGER));
     }
   }, [animeList, sortBy]);
 
   return (
     <PageShell>
-      <Navbar />
-      <div className="relative max-w-7xl mx-auto px-4 py-10">
-        <div className="mb-10">
-          <div className="flex items-center gap-2.5 mb-3">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs shadow-lg"
-              style={{ background: "linear-gradient(135deg,#3b82f6,#7c3aed)" }}
-            >
-              #
-            </div>
-            <span className="text-[11px] font-bold text-blue-400/80 tracking-[0.15em] uppercase">{tagType}</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        
+        {/* Header */}
+        <div className="mb-6 pb-4 border-b border-slate-800/80">
+          <div className="flex items-center gap-2 mb-1.5">
+            <FaTag className="text-xs text-rose-400" />
+            <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">{tagType}</span>
           </div>
-          <h1 className="text-4xl font-bold text-white">{tagName}</h1>
-          <p className="text-gray-600 text-sm mt-1.5">Anime tagged with {tagName}</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{tagName}</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1">Explore titles tagged with {tagName}</p>
         </div>
 
-        <div className="mb-8 flex flex-wrap items-center gap-2">
-          <span className="text-sm text-gray-500">Sort by</span>
+        {/* Sort Filter Pills */}
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500 font-medium mr-1">Sort by:</span>
           {SORT_OPTIONS.map((option) => (
             <button
               key={option.key}
               type="button"
               onClick={() => setSortBy(option.key)}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 sortBy === option.key
-                  ? "bg-blue-600 text-white"
-                  : "border border-white/[0.08] bg-white/[0.04] text-gray-400 hover:text-white hover:bg-white/[0.08]"
+                  ? "bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-sm shadow-rose-500/20"
+                  : "border border-slate-800 bg-slate-900/90 text-slate-300 hover:text-white hover:border-slate-700"
               }`}
             >
               {option.label}
@@ -98,53 +101,71 @@ export default function TagsPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-500">Loading anime...</p>
+          <div className="flex items-center justify-center gap-2 py-16 text-slate-400 text-xs">
+            <span className="w-4 h-4 border-2 border-slate-700 border-t-blue-500 rounded-full animate-spin" />
+            <span>Loading {tagName} anime...</span>
+          </div>
+        ) : sortedAnime.length === 0 ? (
+          <div className="text-center py-20 border border-slate-800 rounded-xl bg-slate-900/20 text-slate-400 text-sm">
+            No anime found for tag "{tagName}".
+          </div>
         ) : (
           <Grid>
-            {sortedAnime.map((anime, index) => (
-              <Link
-                key={`${anime.MalId}-${index}`}
-                to={`/anime/${anime.MalId}`}
-                className="group block"
-              >
-                <div
-                  className="relative rounded-2xl overflow-hidden border border-white/[0.07] transition-all duration-300 group-hover:scale-[1.03] group-hover:border-white/[0.18] group-hover:shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
-                  style={{ background: "linear-gradient(160deg,rgba(255,255,255,0.045) 0%,rgba(255,255,255,0.015) 100%)" }}
+            {sortedAnime.map((anime, index) => {
+              const malId = anime.malId ?? anime.MalId;
+              const title = anime.title ?? anime.Title ?? "Untitled";
+              const type = anime.type ?? anime.Type;
+              const rank = anime.rank ?? anime.Rank;
+              const score = anime.score ?? anime.Score;
+              const popularity = anime.popularity ?? anime.Popularity;
+
+              return (
+                <Link
+                  key={`${malId}-${index}`}
+                  to={`/anime/${malId}`}
+                  className="group block"
                 >
-                  <div className="relative overflow-hidden">
+                  {/* Poster container */}
+                  <div className="relative w-full aspect-[2/3] rounded-lg overflow-hidden bg-slate-900 border border-slate-800/80 group-hover:border-blue-500/50 shadow-sm transition-all duration-300 group-hover:-translate-y-1">
                     <img
                       src={getImg(anime)}
-                      alt={anime.Title}
+                      alt={title}
                       loading="lazy"
-                      className="w-full h-64 object-cover transition-transform duration-700 group-hover:scale-110"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       onError={(e) => {
+                        e.currentTarget.onerror = null;
                         e.currentTarget.src = "/placeholder-anime.jpg";
                       }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                    {anime.Type && (
-                      <div className="absolute top-2.5 left-2.5 bg-blue-600/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
-                        {anime.Type}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+
+                    {score != null && (
+                      <div className="absolute top-2 right-2 bg-black/75 backdrop-blur-sm border border-white/10 text-amber-400 text-[11px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1">
+                        <FaStar className="text-[9px]" />
+                        <span>{score}</span>
                       </div>
                     )}
-                    {anime.Rank && (
-                      <div className="absolute top-2.5 right-2.5 bg-black/70 border border-white/10 text-white text-[11px] font-semibold px-2 py-0.5 rounded-lg">
-                        #{anime.Rank}
+
+                    {type && (
+                      <div className="absolute top-2 left-2 bg-slate-900/85 backdrop-blur-sm border border-slate-700/60 text-slate-300 text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase">
+                        {type}
                       </div>
                     )}
                   </div>
-                  <div className="p-3">
-                    <h3 className="font-semibold text-white text-[13px] leading-snug line-clamp-2 mb-2 group-hover:text-blue-300 transition-colors">
-                      {anime.Title}
+
+                  {/* Metadata below */}
+                  <div className="mt-2.5">
+                    <h3 className="font-semibold text-slate-200 text-xs sm:text-sm leading-snug line-clamp-1 group-hover:text-blue-400 transition-colors">
+                      {title}
                     </h3>
-                    <div className="space-y-1">
-                      <Row label="Score" value={anime.Score ? `★ ${anime.Score}` : "N/A"} color="text-yellow-400" />
-                      <Row label="Popularity" value={anime.Popularity ? `#${anime.Popularity}` : "N/A"} />
+                    <div className="space-y-0.5 mt-1">
+                      {rank && <Row label="Rank" value={`#${rank}`} color="text-slate-300" />}
+                      <Row label="Popularity" value={popularity ? `#${popularity}` : "N/A"} />
                     </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </Grid>
         )}
       </div>

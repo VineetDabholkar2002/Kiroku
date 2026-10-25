@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.git/
+**/.vscode/
+Kiroku.Chat/.venv/
+Kiroku.Chat/__pycache__/
+*.user
+*.suo
+*.log

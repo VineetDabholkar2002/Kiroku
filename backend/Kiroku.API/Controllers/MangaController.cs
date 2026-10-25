@@ -1,7 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Kiroku.Data.Contexts;
-using Kiroku.Domain.Entities;
+using System.Threading.Tasks;
+using Kiroku.Application.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Kiroku.API.Controllers
 {
@@ -9,17 +8,17 @@ namespace Kiroku.API.Controllers
     [Route("api/[controller]")]
     public class MangaController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IMangaService _mangaService;
 
-        public MangaController(AppDbContext context)
+        public MangaController(IMangaService mangaService)
         {
-            _context = context;
+            _mangaService = mangaService;
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetMangaById(int id)
         {
-            var manga = await _context.Mangas.FindAsync(id);
+            var manga = await _mangaService.GetMangaByIdAsync(id);
             if (manga == null) return NotFound();
 
             return Ok(manga);
@@ -28,7 +27,8 @@ namespace Kiroku.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllMangas()
         {
-            return Ok(await _context.Mangas.ToListAsync());
+            var mangas = await _mangaService.GetAllMangasAsync();
+            return Ok(mangas);
         }
     }
 }

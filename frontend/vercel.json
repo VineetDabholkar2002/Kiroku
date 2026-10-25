@@ -6,7 +6,7 @@
     },
     {
       "source": "/chat-api/:path*",
-      "destination": "http://127.0.0.1:8000/:path*"
+      "destination": "https://kiroku-nq3o.onrender.com/:path*"
     },
     {
       "source": "/(.*)",

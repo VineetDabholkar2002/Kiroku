@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -12,6 +12,7 @@ namespace Kiroku.Domain.Entities
         public int MalId { get; set; }       // MAL character ID (unique)
         public string Name { get; set; } = "";
         public string Url { get; set; } = "";
+        public string About { get; set; } = "";
         public int Favorites { get; set; }
 
         public ICollection<CharacterImage> Images { get; set; } = new List<CharacterImage>();

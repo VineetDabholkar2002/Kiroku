@@ -25,6 +25,8 @@
 
 Kiroku lets you browse and discover anime, track your watchlist, and listen to opening/ending themes through your own Spotify account — all in a modern, dark UI.
 
+📖 **For system design diagrams, layer breakdowns, SOLID analysis, and interview talking points, see [ARCHITECTURE.md](ARCHITECTURE.md).**
+
 ---
 
 ## Features
@@ -60,7 +62,7 @@ Kiroku lets you browse and discover anime, track your watchlist, and listen to o
 | Database | PostgreSQL (via Entity Framework Core + Npgsql) |
 | Cache | Redis (StackExchange.Redis) |
 | Local AI | Ollama model inference via local `llama3.1:8b` integration |
-| External APIs | Spotify Web API, Jikan (MyAnimeList) |
+| External APIs | Spotify Web API, Official MyAnimeList (MAL) API v2 |
 | Docs | Swagger / OpenAPI |
 
 ---
@@ -69,23 +71,25 @@ Kiroku lets you browse and discover anime, track your watchlist, and listen to o
 
 ```
 Kiroku/
-├── frontend/                   # React + Vite SPA
+├── frontend/                   # React 19 + Vite SPA (Tailwind CSS 4)
 │   └── src/
-│       ├── pages/              # Route-level page components
-│       ├── skeletons/          # Navbar, AnimeSlider shared components
+│       ├── components/         # Shared components, Layout, Navbar, SpotifyBar
+│       │   ├── common/         # Standardized AnimePageCommon primitives
+│       │   └── soundtracks/    # SongCard, SpotifyConnectBanner, ExportSongsModal
 │       ├── context/            # SpotifyContext, AuthContext
-│       ├── components/         # SpotifyBar, ErrorBoundary
-│       └── hooks/              # useAnimeData (infinite scroll)
+│       ├── hooks/              # useAnimeData (infinite scroll & caching)
+│       ├── pages/              # Route-level page components
+│       └── services/           # Centralized Axios API client with JWT interceptors
 │
 └── backend/
-    ├── Kiroku.API/             # Controllers, Program.cs, entry point
-    ├── Kiroku.Application/     # Services, DTOs, interfaces
-    ├── Kiroku.Domain/          # Entities (Anime, User, Character, etc.)
-    ├── Kiroku.Infrastructure/  # SpotifyService, RedisCacheService
-    ├── Kiroku.Chat/            # Python FastAPI chat assistant and Ollama integration
-    └── Kiroku.Data/            # AppDbContext, Migrations, Seeders
-└── docs/                       # Developer documentation and service notes
-└── scripts/                    # Local startup / stop helpers for Ollama, Redis, Chat
+    ├── Kiroku.API/             # Controllers, Middlewares, Program.cs entry point
+    ├── Kiroku.Application/     # Services, DTOs, interfaces (SOLID abstractions)
+    ├── Kiroku.Domain/          # Domain entities (Anime, User, Character, Genre)
+    ├── Kiroku.Infrastructure/  # External integrations (Spotify, Redis, BCrypt, JWT)
+    ├── Kiroku.Data/            # AppDbContext, Migrations, Seeders
+    └── Kiroku.Chat/            # Python FastAPI microservice (Ollama async streaming)
+├── docs/                       # Developer documentation and guides
+└── scripts/                    # Startup/stop scripts for local dev environment
 ```
 
 ---
@@ -150,7 +154,16 @@ scripts\stop-dev-services.cmd
    ```
    The API will be available at `https://127.0.0.1:7171` with Swagger UI at the root.
 
-5. **Run the chat service (optional, for the Chat page):**
+5. **(Optional) Seed Database via CLI:**
+   Populate or re-seed datasets anytime from the command line:
+   ```bash
+   dotnet run -- --seed             # Seeds users, lists, characters, and full anime catalog
+   dotnet run -- --seed:users       # Seeds only test users and watchlist history
+   dotnet run -- --seed:characters  # Seeds anime characters and voice actors
+   dotnet run -- --seed:anime       # Seeds full anime dataset with checkpoint resumption
+   ```
+
+6. **Run the chat service (optional, for the Chat page):**
    ```bash
    cd backend/Kiroku.Chat
    python -m venv .venv
@@ -160,7 +173,7 @@ scripts\stop-dev-services.cmd
    ```
    The FastAPI chat service will be available at `http://127.0.0.1:8000`.
 
-6. **Auto-start Ollama + model + Redis + Chat service:**
+7. **Auto-start Ollama + model + Redis + Chat service:**
    ```bash
    npm run services
    ```

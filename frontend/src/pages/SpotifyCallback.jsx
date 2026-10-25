@@ -29,7 +29,7 @@ const SpotifyCallback = () => {
 
     handleCallback(code, state)
       .then(() => {
-        navigate("/playlist");
+        navigate("/soundtracks");
       })
       .catch(() => {
         navigate("/?spotify_error=callback_failed");

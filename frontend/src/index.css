@@ -6,16 +6,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: #090c12;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #1f2430;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: #f43f5e;
 }
 
 /* Custom animations */
@@ -35,7 +35,7 @@
 
 .animate-shimmer {
   animation: shimmer 1.5s infinite;
-  background: linear-gradient(90deg, #374151 25%, #4b5563 50);
+  background: linear-gradient(90deg, #1f2430 25%, #2a3142 50%);
   background-size: 200px 100%;
 }
 
@@ -46,21 +46,23 @@
 
 /* Glass effect */
 .glass {
-  backdrop-filter: blur(10px);
-  background: rgba(31, 41, 55, 0.8);
+  backdrop-filter: blur(12px);
+  background: rgba(14, 18, 26, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Gradient text */
+/* Midnight Sakura Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f43f5e 0%, #fb7185 45%, #fbcfe8 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 html, body, #root {
-  background-color: #1a202c; /* tailwind gray-900 hex */
+  background-color: #090c12;
+  color: #cbd5e1;
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
 }

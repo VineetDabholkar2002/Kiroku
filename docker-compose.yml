@@ -1,0 +1,125 @@
+services:
+  # ─────────────────────────────────────────────────────────────
+  # 1. PostgreSQL Database (with persistent volume & health check)
+  # ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: kiroku-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-kiroku}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kiroku}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kiroku-network
+
+  # ─────────────────────────────────────────────────────────────
+  # 2. Redis Cache
+  # ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:alpine
+    container_name: kiroku-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kiroku-network
+
+  # ─────────────────────────────────────────────────────────────
+  # 3. Python FastAPI Chatbot Service
+  # ─────────────────────────────────────────────────────────────
+  chatbot:
+    build:
+      context: ./backend/Kiroku.Chat
+      dockerfile: Dockerfile
+    container_name: kiroku-chatbot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      CHAT_PROVIDER: ${CHAT_PROVIDER:-auto}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-dolphin-mistral}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - kiroku-network
+
+  # ─────────────────────────────────────────────────────────────
+  # 4. ASP.NET Core API (Auto-applies EF Core DB migrations on startup)
+  # ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kiroku-api
+    restart: unless-stopped
+    ports:
+      - "5180:5180"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5180
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=kiroku;Username=postgres;Password=postgres;
+      ConnectionStrings__Redis: redis:6379
+      ChatService__BaseUrl: http://chatbot:8000
+      ChatService__HealthUrl: http://chatbot:8000/health
+      ChatService__AutoStart: "false"
+      RedisService__AutoStart: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chatbot:
+        condition: service_started
+    networks:
+      - kiroku-network
+
+  # ─────────────────────────────────────────────────────────────
+  # 5. React Frontend (Served via Nginx + Reverse Proxy to API & Chat)
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kiroku-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - api
+      - chatbot
+    networks:
+      - kiroku-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  kiroku-network:
+    driver: bridge

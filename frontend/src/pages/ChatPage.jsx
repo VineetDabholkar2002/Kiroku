@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import Navbar from "../skeletons/Navbar";
 import { PageShell } from "./PopularPage";
 import { FaArrowUp, FaComments } from "react-icons/fa6";
 
-const CHAT_API_BASE =
-  import.meta.env.VITE_CHAT_API_URL ||
-  (import.meta.env.DEV ? "/chat-api" : "http://127.0.0.1:8000");
+const CHAT_API_BASE = import.meta.env.VITE_CHAT_API_URL || "/chat-api";
 
 const SUGGESTED_PROMPTS = [
   "Best anime starters for someone new",
@@ -52,10 +49,18 @@ const ChatPage = () => {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState("");
+  const [providerInfo, setProviderInfo] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
+
+    fetch(`${CHAT_API_BASE}/health`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setProviderInfo(data);
+      })
+      .catch(() => setProviderInfo(null));
   }, []);
 
   useEffect(() => {
@@ -145,11 +150,11 @@ const ChatPage = () => {
       }
     } catch (streamError) {
       console.error(streamError);
-      setError("Chat service unavailable. Check Kiroku.Chat, Ollama, and the backend startup logs.");
+      setError("Chat service unavailable. Check that Kiroku.Chat is running on port 8000.");
       setMessages((prev) =>
         prev.map((message) =>
           message.id === assistantMessageId
-            ? { ...message, text: "I only talk about anime." }
+            ? { ...message, text: "Unable to reach the Kiroku chat service. Please make sure Kiroku.Chat is running." }
             : message
         )
       );
@@ -160,7 +165,6 @@ const ChatPage = () => {
 
   return (
     <PageShell>
-      <Navbar />
       <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300/80">
@@ -176,6 +180,12 @@ const ChatPage = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-slate-400">
+              {providerInfo?.active_chain?.[0] && (
+                <span className="flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 font-medium text-cyan-200">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {providerInfo.active_chain[0]}
+                </span>
+              )}
               <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5">Streaming replies</span>
               <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5">Anime only</span>
             </div>
@@ -185,12 +195,14 @@ const ChatPage = () => {
         <section className="overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.035] shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
           <div className="border-b border-white/[0.08] px-5 py-4 sm:px-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200">
-                <FaComments />
-              </div>
+              <img src="/logo.png" alt="KirokuBot" className="w-10 h-10 rounded-2xl shadow-md shadow-rose-500/20 ring-1 ring-white/10 object-cover" />
               <div>
                 <p className="text-sm font-semibold text-white">KirokuBot</p>
-                <p className="text-xs text-slate-500">Streaming chat</p>
+                <p className="text-xs text-slate-500">
+                  {providerInfo?.active_chain?.[0]
+                    ? `Powered by ${providerInfo.active_chain[0]}`
+                    : "Streaming chat"}
+                </p>
               </div>
             </div>
           </div>
@@ -215,7 +227,7 @@ const ChatPage = () => {
                         type="button"
                         onClick={() => handleSend(prompt)}
                         disabled={isStreaming}
-                        className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-left text-sm text-slate-300 transition hover:border-cyan-300/25 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+                        className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-4 text-left text-sm text-slate-300 transition hover:border-rose-400/30 hover:bg-rose-500/5 hover:text-white disabled:opacity-50"
                       >
                         {prompt}
                       </button>
@@ -233,7 +245,7 @@ const ChatPage = () => {
                 <div
                   className={`max-w-[88%] rounded-[26px] px-5 py-4 text-sm leading-7 shadow-[0_18px_45px_rgba(0,0,0,0.18)] ${
                     message.role === "user"
-                      ? "bg-[linear-gradient(135deg,#0891b2,#2563eb)] text-white"
+                      ? "bg-gradient-to-r from-rose-600 via-pink-600 to-rose-700 text-white shadow-rose-500/20"
                       : "border border-white/[0.08] bg-slate-900/70 text-slate-200"
                   }`}
                 >
@@ -272,7 +284,7 @@ const ChatPage = () => {
                   type="button"
                   onClick={() => handleSend()}
                   disabled={isStreaming || !input.trim()}
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500 text-white transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-md shadow-rose-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label="Send message"
                 >
                   <FaArrowUp />

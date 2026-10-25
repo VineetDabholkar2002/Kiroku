@@ -1,4 +1,4 @@
-﻿namespace Kiroku.Application.DTOs
+namespace Kiroku.Application.DTOs
 {
     public class SpotifyTrackDto
     {
@@ -17,19 +17,10 @@
         public string Status { get; set; } = "";
     }
 
-    // Jikan themes responses (if still needed for legacy fallback or parsing)
-    public class JikanThemesResponse
+    public class UserSuggestionDto
     {
-        public ThemeData Data { get; set; } = new();
-    }
-    public class ThemeData
-    {
-        public List<string>? Openings { get; set; }
-        public List<string>? Endings { get; set; }
-    }
-    public class JikanThemesData
-    {
-        public List<string> Openings { get; set; } = new();
-        public List<string> Endings { get; set; } = new();
+        public int Id { get; set; }
+        public string Username { get; set; } = "";
+        public string? ProfilePicture { get; set; }
     }
 }

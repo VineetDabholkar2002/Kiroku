@@ -1,46 +1,60 @@
-using Kiroku.Data.Contexts;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
-using Kiroku.Infrastructure.Services;
+using Kiroku.API.Extensions;
+using Kiroku.API.Middlewares;
+using Kiroku.API.Services;
+using Kiroku.Application.Interfaces;
+using Kiroku.Application.Options;
 using Kiroku.Application.Services;
-using Kiroku.Infrastructure.Data.Repositories;
+using Kiroku.Data.Contexts;
 using Kiroku.Data.Seeders;
-using Kiroku.Domain.Entities;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using System.Diagnostics;
-using System.Net.Sockets;
+using Kiroku.Infrastructure.Data.Repositories;
+using Kiroku.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.OpenApi.Models;
 
-// Build the web application
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
-// Register essential services
+// Strongly-Typed Configuration (Options Pattern)
+builder.Services.Configure<SpotifyOptions>(configuration.GetSection(SpotifyOptions.SectionName));
+builder.Services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+
+// 1. Framework, HTTP Services & Rate Limiting
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<SpotifyService>();
-builder.Services.AddSingleton<SpotifyAuthService>();
-builder.Services.AddSingleton<SpotifyService>();
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<UserService>();
+builder.Services.AddKirokuRateLimiting();
 
-// Register Redis distributed cache
+// 2. Application & Infrastructure Services (SOLID)
+builder.Services.AddSingleton<ISpotifyService, SpotifyService>();
+builder.Services.AddSingleton<ITokenService, TokenService>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAnimeService, AnimeService>();
+builder.Services.AddScoped<ICharacterService, CharacterService>();
+builder.Services.AddScoped<IPersonService, PersonService>();
+builder.Services.AddScoped<IMangaService, MangaService>();
+builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+builder.Services.AddScoped<DatabaseSeeder>();
+
+// 3. Distributed Caching (Redis)
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = configuration.GetConnectionString("Redis");
     options.InstanceName = "Kiroku:";
 });
-
-
-// Register reusable CacheService abstraction
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
-// Register DbContext with PostgreSQL
+// 4. Persistence (PostgreSQL / EF Core)
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+    options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
+    options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 });
+builder.Services.AddScoped(sp =>
+    sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
-// Add CORS policy
+// 5. Cross-Origin Resource Sharing (CORS)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -51,7 +65,31 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Enable Swagger/OpenAPI
+// 6. JWT Authentication
+var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+        ValidateIssuer = true,
+        ValidIssuer = jwtOptions.Issuer,
+        ValidateAudience = true,
+        ValidAudience = jwtOptions.Audience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromMinutes(5)
+    };
+});
+builder.Services.AddAuthorization();
+
+// 7. OpenAPI / Swagger Documentation
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -59,34 +97,105 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Kiroku API",
         Version = "v1",
-        Description = "Kiroku API"
+        Description = "Kiroku Anime & Music API"
+    });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
 var app = builder.Build();
-var logger = app.Logger;
 
+app.UseMiddleware<GlobalExceptionMiddleware>();
+
+// Optional CLI-driven database seeder:
+// Usage: dotnet run -- --seed
+//        dotnet run -- --seed:users
+//        dotnet run -- --seed:characters
+//        dotnet run -- --seed:anime
+var seedArg = args.FirstOrDefault(a => a.StartsWith("--seed", StringComparison.OrdinalIgnoreCase));
+if (seedArg != null)
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+    app.Logger.LogInformation("Database seeding triggered via argument: {Arg}", seedArg);
+
+    if (seedArg.Equals("--seed:users", StringComparison.OrdinalIgnoreCase))
+        await seeder.SeedUsersAndListsAsync();
+    else if (seedArg.Equals("--seed:characters", StringComparison.OrdinalIgnoreCase))
+        await seeder.SeedCharactersAsync();
+    else if (seedArg.Equals("--seed:anime", StringComparison.OrdinalIgnoreCase))
+        await seeder.SeedAnimeAsync();
+    else
+        await seeder.SeedAllAsync();
+
+    app.Logger.LogInformation("Database seeding finished.");
+    return;
+}
+
+// Database Migrations (Automatic EF Core schema updates on startup)
+try
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var retries = 5;
+    while (retries > 0)
+    {
+        try
+        {
+            app.Logger.LogInformation("Checking database and applying EF Core migrations...");
+            await dbContext.Database.MigrateAsync();
+            app.Logger.LogInformation("Database migrations applied successfully.");
+            break;
+        }
+        catch (Exception ex) when (retries > 1)
+        {
+            retries--;
+            app.Logger.LogWarning("Database not ready ({Message}). Retrying in 3s... ({Retries} attempts left)", ex.Message, retries);
+            await Task.Delay(3000);
+        }
+    }
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Failed to apply database migrations on startup.");
+}
+
+// Development Environment Setup
 if (app.Environment.IsDevelopment())
 {
-    logger.LogInformation("Kiroku.API starting in Development.");
-    await EnsureChatServiceRunningAsync(configuration, app.Environment.ContentRootPath, logger);
+    app.Logger.LogInformation("Kiroku.API starting in Development.");
+    await RedisServiceLauncher.EnsureRunningAsync(configuration, app.Logger);
+    await ChatServiceLauncher.EnsureRunningAsync(configuration, app.Environment.ContentRootPath, app.Logger);
+    if (!string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        app.UseHttpsRedirection();
+    }
 }
 
-// ]Seed database data here if needed
-using (var scope = app.Services.CreateScope())
-{
-    //var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    //await UserAndListSeeder.SeedAsync(context);
-    //await CharacterSeeder.SeedCharactersAsync(context);
-
-    //var animeJsonPath = Path.Combine("C:\\Main\\Main Projects\\Kiroku\\backend\\Kiroku.Data", "Seeders", "all_anime_full.json");
-    //var checkPtJsonPath = Path.Combine("C:\\Main\\Main Projects\\Kiroku\\backend\\Kiroku.Data", "Seeders", "checkpoint.json");
-
-    //var animeSeeder = new AnimeFullSeeder(context, animeJsonPath, checkPtJsonPath);
-    //await animeSeeder.SeedAsync();
-}
-
-// Enable Swagger UI
+// Swagger UI
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
@@ -94,101 +203,18 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = string.Empty;
 });
 
-// Enable CORS
+// Middleware Pipeline
 app.UseCors("AllowAll");
-
-// Enable HTTPS and controller mapping
-if (app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// Cloud Port Binding (Render / Heroku / Container dynamic port allocation)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    app.Urls.Add($"http://*:{port}");
+}
+
 app.Run();
-
-static async Task EnsureChatServiceRunningAsync(IConfiguration configuration, string apiContentRoot, ILogger logger)
-{
-    var chatSection = configuration.GetSection("ChatService");
-    var autoStart = chatSection.GetValue("AutoStart", true);
-    if (!autoStart)
-    {
-        logger.LogInformation("Chat service auto-start is disabled.");
-        return;
-    }
-
-    var healthUrl = chatSection["HealthUrl"] ?? "http://127.0.0.1:8000/health";
-    logger.LogInformation("Checking Kiroku.Chat health at {HealthUrl}...", healthUrl);
-    if (await IsChatHealthyAsync(healthUrl))
-    {
-        logger.LogInformation("Kiroku.Chat is already running. Health check passed at {HealthUrl}.", healthUrl);
-        return;
-    }
-
-    var chatDir = Path.GetFullPath(Path.Combine(apiContentRoot, "..", "Kiroku.Chat"));
-    var venvPython = Path.Combine(chatDir, ".venv", "Scripts", "python.exe");
-    var pythonExe = File.Exists(venvPython) ? venvPython : (chatSection["PythonExecutable"] ?? "python");
-
-    if (!Directory.Exists(chatDir))
-    {
-        logger.LogWarning("Chat service directory was not found at {ChatDir}.", chatDir);
-        return;
-    }
-
-    try
-    {
-        logger.LogInformation("Kiroku.Chat is not healthy. Attempting auto-start from {ChatDir}...", chatDir);
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = pythonExe,
-            Arguments = "-m uvicorn app:app --host 127.0.0.1 --port 8000",
-            WorkingDirectory = chatDir,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        var process = Process.Start(startInfo);
-        logger.LogInformation("Started Kiroku.Chat using {PythonExe}. ProcessId: {ProcessId}", pythonExe, process?.Id);
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Failed to start Kiroku.Chat automatically.");
-        return;
-    }
-
-    var startupWaitSeconds = chatSection.GetValue("StartupWaitSeconds", 30);
-    for (var attempt = 0; attempt < startupWaitSeconds; attempt++)
-    {
-        logger.LogInformation("Waiting for Kiroku.Chat health check... attempt {Attempt}/{Total}", attempt + 1, startupWaitSeconds);
-        await Task.Delay(1000);
-        if (await IsChatHealthyAsync(healthUrl))
-        {
-            logger.LogInformation("Kiroku.Chat is healthy at {HealthUrl}.", healthUrl);
-            return;
-        }
-    }
-
-    logger.LogWarning("Kiroku.Chat was launched but did not become healthy at {HealthUrl}.", healthUrl);
-}
-
-static async Task<bool> IsChatHealthyAsync(string healthUrl)
-{
-    try
-    {
-        var uri = new Uri(healthUrl);
-        using var tcpClient = new TcpClient();
-        var connectTask = tcpClient.ConnectAsync(uri.Host, uri.Port);
-        var completedTask = await Task.WhenAny(connectTask, Task.Delay(1000));
-        if (completedTask != connectTask)
-        {
-            return false;
-        }
-
-        await connectTask;
-        return tcpClient.Connected;
-    }
-    catch
-    {
-        return false;
-    }
-}

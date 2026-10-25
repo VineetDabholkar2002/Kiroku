@@ -1,13 +1,18 @@
 import { useEffect } from "react";
-import Navbar from "../skeletons/Navbar";
 import useAnimeData from "../hooks/useAnimeData";
-import { Link } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
-import { PageShell, PageHeader, Grid, AnimeCard, Row, Spinner, EndMsg } from "./PopularPage";
+import { PageShell, PageHeader, Grid, AnimeCard, Row, Spinner, EndMsg } from "../components/common/AnimePageCommon";
 
-const getImg = (anime) =>
-  anime?.Images?.find(i => i.Format === "jpg")?.ImageUrl ||
-  anime?.Images?.[0]?.ImageUrl || "/placeholder-anime.jpg";
+const getImg = (anime) => {
+  const images = anime?.images || anime?.Images;
+  return (
+    images?.find((i) => (i.format || i.Format)?.toLowerCase() === "jpg")?.imageUrl ||
+    images?.find((i) => (i.format || i.Format)?.toLowerCase() === "jpg")?.ImageUrl ||
+    images?.[0]?.imageUrl ||
+    images?.[0]?.ImageUrl ||
+    "/placeholder-anime.jpg"
+  );
+};
 
 const TopRatedPage = () => {
   const { animeList, loading, isEnd, handleScroll } = useAnimeData("top-rated");
@@ -19,18 +24,26 @@ const TopRatedPage = () => {
 
   return (
     <PageShell>
-      <Navbar />
-      <div className="relative max-w-7xl mx-auto px-4 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader icon={<FaStar />} label="Rankings" title="Top Rated Anime" subtitle="Highest scored anime of all time" />
         <Grid>
-          {animeList.filter(a => !a.placeholder).map((anime, i) => (
-            <AnimeCard key={`${anime.MalId}-${i}`} to={`/anime/${anime.MalId}`} image={getImg(anime)} title={anime.Title} type={anime.Type}
-              badge={anime.Score ? `⭐ ${anime.Score}` : null} index={i}
-            >
-              <Row label="Rank"       value={anime.Rank ? `#${anime.Rank}` : "N/A"} color="text-orange-400" />
-              <Row label="Popularity" value={anime.Popularity ? `#${anime.Popularity}` : "N/A"} color="text-gray-400" />
-            </AnimeCard>
-          ))}
+          {animeList.filter(a => !a.placeholder).map((anime, i) => {
+            const malId = anime.malId ?? anime.MalId;
+            const title = anime.title ?? anime.Title ?? "Untitled";
+            const type = anime.type ?? anime.Type;
+            const rank = anime.rank ?? anime.Rank;
+            const popularity = anime.popularity ?? anime.Popularity;
+            const score = anime.score ?? anime.Score;
+
+            return (
+              <AnimeCard key={`${malId}-${i}`} to={`/anime/${malId}`} image={getImg(anime)} title={title} type={type}
+                badge={score ? `⭐ ${score}` : null} index={i}
+              >
+                <Row label="Rank"       value={rank ? `#${rank}` : "N/A"} color="text-orange-400" />
+                <Row label="Popularity" value={popularity ? `#${popularity}` : "N/A"} color="text-gray-400" />
+              </AnimeCard>
+            );
+          })}
         </Grid>
         {loading && <Spinner />}
         {isEnd && !loading && <EndMsg count={animeList.filter(a => !a.placeholder).length} />}

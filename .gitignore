@@ -1,17 +1,79 @@
-# Node
+# =================================================================
+# Scraper Scratch & Temporary Notebooks
+# =================================================================
+data/Kiroku_*.ipynb
+data/Scrape_*.ipynb
+data/scrape_*.py
+data/skipped_*.txt
+data/data/_*.txt
+
+# =================================================================
+# Node & Frontend
+# =================================================================
 frontend/node_modules/
 frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# .NET build output
-backend/**/bin/
-backend/**/obj/
-backend/**/.vs/
+# =================================================================
+# .NET Build Output & IDE
+# =================================================================
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
-# Environment / secrets
-**/appsettings.Development.json
+# =================================================================
+# Python & Virtual Environments
+# =================================================================
+**/__pycache__/
+**/*.py[cod]
+*$py.class
+**/.venv/
+**/venv/
+**/env/
+**/.pytest_cache/
+**/*.egg-info/
+
+# =================================================================
+# Jupyter Notebook Checkpoints & Scraped Data Caches
+# =================================================================
+**/.ipynb_checkpoints/
+**/*.tmp
+*.tmp
+data/data/users/
+data/data/html/
+*.pdf
+generate_pdf.py
+
+# =================================================================
+# Logs & Environment Secrets
+# =================================================================
+*.log
+**/*.log
 **/.env
+**/.env.*
+!**/.env.example
+**/appsettings.Development.json
 
-# Ignore data/seeder json files
+# =================================================================
+# Heavy Raw Datasets & Seeder JSON Cache
+# =================================================================
 data/**/*.json
 backend/**/*.json
 backend/Kiroku.Data/Seeders/all_anime_full.json
+*.tar.gz
+*.zip
+
+# =================================================================
+# OS Specific
+# =================================================================
+.DS_Store
+Thumbs.db
+desktop.ini

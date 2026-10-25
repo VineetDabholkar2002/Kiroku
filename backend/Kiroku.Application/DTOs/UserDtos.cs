@@ -1,4 +1,4 @@
-﻿namespace Kiroku.Application.DTOs
+namespace Kiroku.Application.DTOs
 {
     public class UserDTO
     {
@@ -62,5 +62,27 @@
         public double RecommendationScore { get; set; }
         public List<string> ReasonUsernames { get; set; } = new();
         public List<UserAnimeTagDto> Tags { get; set; } = new();
+    }
+
+    public class LoginRequestDto
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+    public class LoginResponseDto
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? ProfilePicture { get; set; }
+        public string Token { get; set; } = string.Empty;
+    }
+
+    public class UpdateUserAnimeListRequest
+    {
+        public int AnimeMalId { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public int Score { get; set; }
     }
 }

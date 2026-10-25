@@ -1,4 +1,4 @@
-﻿public class AnimeDto
+public class AnimeDto
 {
     public int Id { get; set; }
     public int MalId { get; set; }
@@ -164,6 +164,18 @@ public class AnimeThemesDto
     public List<string> Endings { get; set; } = new();
 }
 
+public class AnimeSoundtrackSongDto
+{
+    public int AnimeMalId { get; set; }
+    public string AnimeTitle { get; set; } = "";
+    public string? AnimeImage { get; set; }
+    public string Name { get; set; } = "";
+    public string Artist { get; set; } = "";
+    public string Type { get; set; } = ""; // "Opening" or "Ending"
+    public int Sequence { get; set; }
+    public string RawText { get; set; } = "";
+}
+
 public class RelationDto
 {
     public string RelationType { get; set; }
@@ -175,4 +187,5 @@ public class RelationEntryDto
     public string EntryType { get; set; }
     public string Name { get; set; }
     public string Url { get; set; }
+    public string? ImageUrl { get; set; }
 }

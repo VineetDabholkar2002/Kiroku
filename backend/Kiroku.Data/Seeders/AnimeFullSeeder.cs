@@ -83,58 +83,63 @@ namespace Kiroku.Data.Seeders
                         };
 
                         // Titles
-                        foreach (var t in animeJson["titles"] ?? new JArray())
-                            animeEntity.Titles.Add(new AnimeTitle { Type = t.Value<string>("type"), Title = t.Value<string>("title") });
+                        if (animeJson["titles"] is JArray titlesArr)
+                        {
+                            foreach (var titleToken in titlesArr)
+                                animeEntity.Titles.Add(new AnimeTitle { Type = titleToken.Value<string>("type"), Title = titleToken.Value<string>("title") });
+                        }
 
                         // Title synonyms
-                        foreach (var s in animeJson["title_synonyms"] ?? new JArray())
-                            animeEntity.TitleSynonyms.Add(new AnimeTitleSynonym { Synonym = s?.ToString() });
+                        if (animeJson["title_synonyms"] is JArray synArr)
+                        {
+                            foreach (var s in synArr)
+                                animeEntity.TitleSynonyms.Add(new AnimeTitleSynonym { Synonym = s?.ToString() });
+                        }
 
                         // Images
-                        foreach (var fmt in new[] { "jpg", "webp" })
+                        if (animeJson["images"] is JObject imagesObj)
                         {
-                            var imgObj = animeJson["images"]?[fmt];
-                            if (imgObj != null)
+                            foreach (var fmt in new[] { "jpg", "webp" })
                             {
-                                animeEntity.Images.Add(new AnimeImage
+                                if (imagesObj[fmt] is JObject imgObj)
                                 {
-                                    Format = fmt,
-                                    ImageUrl = imgObj.Value<string>("image_url"),
-                                    SmallImageUrl = imgObj.Value<string>("small_image_url"),
-                                    LargeImageUrl = imgObj.Value<string>("large_image_url")
-                                });
+                                    animeEntity.Images.Add(new AnimeImage
+                                    {
+                                        Format = fmt,
+                                        ImageUrl = imgObj.Value<string>("image_url"),
+                                        SmallImageUrl = imgObj.Value<string>("small_image_url"),
+                                        LargeImageUrl = imgObj.Value<string>("large_image_url")
+                                    });
+                                }
                             }
                         }
 
                         // Trailer and images
-                        if (animeJson["trailer"] != null)
+                        if (animeJson["trailer"] is JObject trailerObj)
                         {
-                            var t = animeJson["trailer"];
                             var trailerEntity = new Trailer
                             {
-                                YoutubeId = t.Value<string>("youtube_id"),
-                                Url = t.Value<string>("url"),
-                                EmbedUrl = t.Value<string>("embed_url")
+                                YoutubeId = trailerObj.Value<string>("youtube_id"),
+                                Url = trailerObj.Value<string>("url"),
+                                EmbedUrl = trailerObj.Value<string>("embed_url")
                             };
-                            if (t["images"] != null)
+                            if (trailerObj["images"] is JObject tImg)
                             {
                                 trailerEntity.Images = new TrailerImages
                                 {
-                                    ImageUrl = t["images"].Value<string>("image_url"),
-                                    SmallImageUrl = t["images"].Value<string>("small_image_url"),
-                                    MediumImageUrl = t["images"].Value<string>("medium_image_url"),
-                                    LargeImageUrl = t["images"].Value<string>("large_image_url"),
-                                    MaximumImageUrl = t["images"].Value<string>("maximum_image_url")
+                                    ImageUrl = tImg.Value<string>("image_url"),
+                                    SmallImageUrl = tImg.Value<string>("small_image_url"),
+                                    MediumImageUrl = tImg.Value<string>("medium_image_url"),
+                                    LargeImageUrl = tImg.Value<string>("large_image_url"),
+                                    MaximumImageUrl = tImg.Value<string>("maximum_image_url")
                                 };
                             }
                             animeEntity.Trailer = trailerEntity;
                         }
 
                         // Aired
-                        if (animeJson["aired"] != null)
+                        if (animeJson["aired"] is JObject aired)
                         {
-                            var aired = animeJson["aired"];
-
                             DateTime? from = TryParseDate(aired.Value<string>("from"));
                             DateTime? to = TryParseDate(aired.Value<string>("to"));
 
@@ -145,22 +150,21 @@ namespace Kiroku.Data.Seeders
                                 String = aired.Value<string>("string")
                             };
 
-                            if (aired["prop"] != null)
+                            if (aired["prop"] is JObject prop)
                             {
-                                var prop = aired["prop"];
                                 airedObj.Prop = new AiredProp
                                 {
-                                    From = prop["from"] != null ? new AiredPropDate
+                                    From = prop["from"] is JObject fromProp ? new AiredPropDate
                                     {
-                                        Day = prop["from"].Value<int?>("day"),
-                                        Month = prop["from"].Value<int?>("month"),
-                                        Year = prop["from"].Value<int?>("year")
+                                        Day = fromProp.Value<int?>("day"),
+                                        Month = fromProp.Value<int?>("month"),
+                                        Year = fromProp.Value<int?>("year")
                                     } : null,
-                                    To = prop["to"] != null ? new AiredPropDate
+                                    To = prop["to"] is JObject toProp ? new AiredPropDate
                                     {
-                                        Day = prop["to"].Value<int?>("day"),
-                                        Month = prop["to"].Value<int?>("month"),
-                                        Year = prop["to"].Value<int?>("year")
+                                        Day = toProp.Value<int?>("day"),
+                                        Month = toProp.Value<int?>("month"),
+                                        Year = toProp.Value<int?>("year")
                                     } : null
                                 };
                             }
@@ -168,9 +172,8 @@ namespace Kiroku.Data.Seeders
                         }
 
                         // Broadcast
-                        if (animeJson["broadcast"] != null)
+                        if (animeJson["broadcast"] is JObject b)
                         {
-                            var b = animeJson["broadcast"];
                             animeEntity.Broadcast = new Broadcast
                             {
                                 Day = b.Value<string>("day"),
@@ -181,59 +184,77 @@ namespace Kiroku.Data.Seeders
                         }
 
                         // External links
-                        foreach (var ext in animeJson["external"] ?? new JArray())
-                            animeEntity.ExternalLinks.Add(new ExternalLink { Name = ext["name"]?.ToString(), Url = ext["url"]?.ToString() });
+                        if (animeJson["external"] is JArray extArr)
+                        {
+                            foreach (var ext in extArr)
+                                animeEntity.ExternalLinks.Add(new ExternalLink { Name = ext["name"]?.ToString(), Url = ext["url"]?.ToString() });
+                        }
 
                         // Streaming links
-                        foreach (var stream in animeJson["streaming"] ?? new JArray())
-                            animeEntity.StreamingLinks.Add(new StreamingLink { Name = stream["name"]?.ToString(), Url = stream["url"]?.ToString() });
+                        if (animeJson["streaming"] is JArray streamArr)
+                        {
+                            foreach (var stream in streamArr)
+                                animeEntity.StreamingLinks.Add(new StreamingLink { Name = stream["name"]?.ToString(), Url = stream["url"]?.ToString() });
+                        }
 
                         // Studios
-                        foreach (var entry in animeJson["studios"] ?? new JArray())
+                        if (animeJson["studios"] is JArray studiosArr)
                         {
-                            int studioMalId = entry.Value<int>("mal_id");
-                            string studioName = entry.Value<string>("name");
-                            var studioEntity = _db.Studios.Local.FirstOrDefault(s => s.MalId == studioMalId)
-                                ?? await _db.Studios.FirstOrDefaultAsync(s => s.MalId == studioMalId);
-                            if (studioEntity == null)
+                            foreach (var entry in studiosArr)
                             {
-                                studioEntity = new Studio { MalId = studioMalId, Name = studioName };
-                                _db.Studios.Add(studioEntity);
-                                await _db.SaveChangesAsync(); // Save to get PK before join insert
+                                if (entry is not JObject entryObj) continue;
+                                int studioMalId = entryObj.Value<int>("mal_id");
+                                string studioName = entryObj.Value<string>("name");
+                                var studioEntity = _db.Studios.Local.FirstOrDefault(s => s.MalId == studioMalId)
+                                    ?? await _db.Studios.FirstOrDefaultAsync(s => s.MalId == studioMalId);
+                                if (studioEntity == null)
+                                {
+                                    studioEntity = new Studio { MalId = studioMalId, Name = studioName };
+                                    _db.Studios.Add(studioEntity);
+                                    await _db.SaveChangesAsync(); // Save to get PK before join insert
+                                }
+                                animeEntity.AnimeStudios.Add(new AnimeStudio { Anime = animeEntity, Studio = studioEntity });
                             }
-                            animeEntity.AnimeStudios.Add(new AnimeStudio { Anime = animeEntity, Studio = studioEntity });
                         }
 
                         // Producers
-                        foreach (var entry in animeJson["producers"] ?? new JArray())
+                        if (animeJson["producers"] is JArray producersArr)
                         {
-                            int producerMalId = entry.Value<int>("mal_id");
-                            string producerName = entry.Value<string>("name");
-                            var producerEntity = _db.Producers.Local.FirstOrDefault(p => p.MalId == producerMalId)
-                                ?? await _db.Producers.FirstOrDefaultAsync(p => p.MalId == producerMalId);
-                            if (producerEntity == null)
+                            foreach (var entry in producersArr)
                             {
-                                producerEntity = new Producer { MalId = producerMalId, Name = producerName };
-                                _db.Producers.Add(producerEntity);
-                                await _db.SaveChangesAsync();
+                                if (entry is not JObject entryObj) continue;
+                                int producerMalId = entryObj.Value<int>("mal_id");
+                                string producerName = entryObj.Value<string>("name");
+                                var producerEntity = _db.Producers.Local.FirstOrDefault(p => p.MalId == producerMalId)
+                                    ?? await _db.Producers.FirstOrDefaultAsync(p => p.MalId == producerMalId);
+                                if (producerEntity == null)
+                                {
+                                    producerEntity = new Producer { MalId = producerMalId, Name = producerName };
+                                    _db.Producers.Add(producerEntity);
+                                    await _db.SaveChangesAsync();
+                                }
+                                animeEntity.AnimeProducers.Add(new AnimeProducer { Anime = animeEntity, Producer = producerEntity });
                             }
-                            animeEntity.AnimeProducers.Add(new AnimeProducer { Anime = animeEntity, Producer = producerEntity });
                         }
 
                         // Licensors
-                        foreach (var entry in animeJson["licensors"] ?? new JArray())
+                        if (animeJson["licensors"] is JArray licensorsArr)
                         {
-                            int licensorMalId = entry.Value<int>("mal_id");
-                            string licensorName = entry.Value<string>("name");
-                            var licensorEntity = _db.Licensors.Local.FirstOrDefault(l => l.MalId == licensorMalId)
-                                ?? await _db.Licensors.FirstOrDefaultAsync(l => l.MalId == licensorMalId);
-                            if (licensorEntity == null)
+                            foreach (var entry in licensorsArr)
                             {
-                                licensorEntity = new Licensor { MalId = licensorMalId, Name = licensorName };
-                                _db.Licensors.Add(licensorEntity);
-                                await _db.SaveChangesAsync();
+                                if (entry is not JObject entryObj) continue;
+                                int licensorMalId = entryObj.Value<int>("mal_id");
+                                string licensorName = entryObj.Value<string>("name");
+                                var licensorEntity = _db.Licensors.Local.FirstOrDefault(l => l.MalId == licensorMalId)
+                                    ?? await _db.Licensors.FirstOrDefaultAsync(l => l.MalId == licensorMalId);
+                                if (licensorEntity == null)
+                                {
+                                    licensorEntity = new Licensor { MalId = licensorMalId, Name = licensorName };
+                                    _db.Licensors.Add(licensorEntity);
+                                    await _db.SaveChangesAsync();
+                                }
+                                animeEntity.AnimeLicensors.Add(new AnimeLicensor { Anime = animeEntity, Licensor = licensorEntity });
                             }
-                            animeEntity.AnimeLicensors.Add(new AnimeLicensor { Anime = animeEntity, Licensor = licensorEntity });
                         }
 
                         // Genres and others
@@ -265,20 +286,26 @@ namespace Kiroku.Data.Seeders
                         }
 
                         // Relations
-                        foreach (var rel in animeJson["relations"] ?? new JArray())
+                        if (animeJson["relations"] is JArray relationsArr)
                         {
-                            var relEntity = new Relation { RelationType = rel.Value<string>("relation") };
-                            foreach (var entry in rel["entry"] ?? new JArray())
+                            foreach (var rel in relationsArr)
                             {
-                                relEntity.Entries.Add(new RelationEntry
+                                var relEntity = new Relation { RelationType = rel.Value<string>("relation") };
+                                if (rel["entry"] is JArray entryArr)
                                 {
-                                    MalId = entry.Value<int>("mal_id"),
-                                    EntryType = entry.Value<string>("type"),
-                                    Name = entry.Value<string>("name"),
-                                    Url = entry.Value<string>("url")
-                                });
+                                    foreach (var entry in entryArr)
+                                    {
+                                        relEntity.Entries.Add(new RelationEntry
+                                        {
+                                            MalId = entry.Value<int>("mal_id"),
+                                            EntryType = entry.Value<string>("type"),
+                                            Name = entry.Value<string>("name"),
+                                            Url = entry.Value<string>("url")
+                                        });
+                                    }
+                                }
+                                animeEntity.Relations.Add(relEntity);
                             }
-                            animeEntity.Relations.Add(relEntity);
                         }
 
                         _db.Animes.Add(animeEntity);
@@ -330,10 +357,13 @@ namespace Kiroku.Data.Seeders
 
         private async Task SeedGenres(Anime anime, JToken animeJson, string jsonField, string genreType)
         {
-            foreach (var entry in animeJson[jsonField] ?? new JArray())
+            if (animeJson[jsonField] is not JArray arr) return;
+
+            foreach (var entry in arr)
             {
-                int genreMalId = entry.Value<int>("mal_id");
-                string genreName = entry.Value<string>("name");
+                if (entry is not JObject entryObj) continue;
+                int genreMalId = entryObj.Value<int>("mal_id");
+                string genreName = entryObj.Value<string>("name");
 
                 var genre = _db.Genres.Local.FirstOrDefault(g => g.MalId == genreMalId && g.Type == genreType)
                     ?? await _db.Genres.FirstOrDefaultAsync(g => g.MalId == genreMalId && g.Type == genreType);

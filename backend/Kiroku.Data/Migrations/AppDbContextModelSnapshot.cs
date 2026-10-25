@@ -20,6 +20,7 @@ namespace Kiroku.Data.Migrations
                 .HasAnnotation("ProductVersion", "9.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Kiroku.Domain.Entities.Aired", b =>
@@ -239,9 +240,40 @@ namespace Kiroku.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_animes_broadcastid");
 
+                    b.HasIndex("Favorites")
+                        .HasDatabaseName("ix_animes_favorites");
+
+                    b.HasIndex("MalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_animes_malid");
+
+                    b.HasIndex("Popularity")
+                        .HasDatabaseName("ix_animes_popularity");
+
+                    b.HasIndex("Score")
+                        .HasDatabaseName("ix_animes_score");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_animes_status");
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("ix_animes_title");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("TitleEnglish")
+                        .HasDatabaseName("ix_animes_titleenglish");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TitleEnglish"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("TitleEnglish"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("TrailerId")
                         .IsUnique()
                         .HasDatabaseName("ix_animes_trailerid");
+
+                    b.HasIndex("Approved", "Popularity")
+                        .HasDatabaseName("ix_animes_approved_popularity");
 
                     b.ToTable("animes");
                 });
@@ -275,11 +307,11 @@ namespace Kiroku.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_animecharacters");
 
-                    b.HasIndex("AnimeId")
-                        .HasDatabaseName("ix_animecharacters_animeid");
-
                     b.HasIndex("CharacterId")
                         .HasDatabaseName("ix_animecharacters_characterid");
+
+                    b.HasIndex("AnimeId", "CharacterId")
+                        .HasDatabaseName("ix_animecharacters_animeid_characterid");
 
                     b.ToTable("animecharacters");
                 });
@@ -515,6 +547,16 @@ namespace Kiroku.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_characters");
 
+                    b.HasIndex("MalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_characters_malid");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_characters_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
                     b.ToTable("characters");
                 });
 
@@ -630,6 +672,12 @@ namespace Kiroku.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_genres");
+
+                    b.HasIndex("Type")
+                        .HasDatabaseName("ix_genres_type");
+
+                    b.HasIndex("MalId", "Type")
+                        .HasDatabaseName("ix_genres_malid_type");
 
                     b.ToTable("genres");
                 });
@@ -748,8 +796,18 @@ namespace Kiroku.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_people");
 
+                    b.HasIndex("MalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_people_malid");
+
                     b.HasIndex("MangaId")
                         .HasDatabaseName("ix_people_mangaid");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_people_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
 
                     b.ToTable("people");
 
@@ -956,8 +1014,8 @@ namespace Kiroku.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_themeentries");
 
-                    b.HasIndex("AnimeId")
-                        .HasDatabaseName("ix_themeentries_animeid");
+                    b.HasIndex("AnimeId", "Category")
+                        .HasDatabaseName("ix_themeentries_animeid_category");
 
                     b.ToTable("themeentries");
                 });
@@ -1067,6 +1125,12 @@ namespace Kiroku.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_users");
 
+                    b.HasIndex("Email")
+                        .HasDatabaseName("ix_users_email");
+
+                    b.HasIndex("Username")
+                        .HasDatabaseName("ix_users_username");
+
                     b.ToTable("users");
                 });
 
@@ -1098,6 +1162,9 @@ namespace Kiroku.Data.Migrations
 
                     b.HasIndex("AnimeId")
                         .HasDatabaseName("ix_useranimelists_animeid");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("ix_useranimelists_userid_status");
 
                     b.ToTable("useranimelists");
                 });

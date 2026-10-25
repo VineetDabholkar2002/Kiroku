@@ -1,58 +1,77 @@
-import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback, useRef } from "react";
+import api from "../services/api";
 
 const useAnimeData = (mode = "popular", columnCount = 5) => {
   const [animeList, setAnimeList] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [isEnd, setIsEnd] = useState(false);
+  const fetchingRef = useRef(false);
 
-  const fetchAnimeData = async (pageNum) => {
-    if (isEnd || loading) return;
-
-    try {
-      setLoading(true);
-      const response = await axios.get(`/api/v1/anime/${mode}`, {
-        params: { page: pageNum },
-      });
-
-      console.log("Response data:", response.data.data);
-      const newItems = response.data.data;
-
-      if (newItems.length === 0) {
-        setIsEnd(true);
-      } else {
-       setAnimeList((prev) => {
-        const existing = new Set(prev.map(a => `${a.MalId}-${a.Id}`));
-        const deduped = newItems.filter(a => !existing.has(`${a.MalId}-${a.Id}`));
-        return [...prev, ...deduped];
-      });
-
-      }
-    } catch (error) {
-      console.error("Failed to fetch anime data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Reset when mode changes
   useEffect(() => {
-    // Reset when mode changes
     setAnimeList([]);
     setPage(1);
     setIsEnd(false);
+    setError(null);
   }, [mode]);
 
   useEffect(() => {
-    fetchAnimeData(page);
-  }, [page, mode]);
+    let isCancelled = false;
+
+    const fetchAnimeData = async () => {
+      if (isEnd || fetchingRef.current) return;
+
+      fetchingRef.current = true;
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await api.get(`/api/v1/anime/${mode}`, {
+          params: { page },
+        });
+
+        if (isCancelled) return;
+
+        const newItems = response.data?.data || [];
+
+        if (newItems.length === 0) {
+          setIsEnd(true);
+        } else {
+          setAnimeList((prev) => {
+            const getKey = (a) => `${a.malId ?? a.MalId ?? a.id ?? a.Id}`;
+            const existing = new Set(prev.map(getKey));
+            const deduped = newItems.filter((a) => !existing.has(getKey(a)));
+            return [...prev, ...deduped];
+          });
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setError(err.response?.data?.message || err.message || "Failed to load anime data.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+          fetchingRef.current = false;
+        }
+      }
+    };
+
+    fetchAnimeData();
+
+    return () => {
+      isCancelled = true;
+      fetchingRef.current = false;
+    };
+  }, [page, mode, isEnd]);
 
   const handleScroll = useCallback(() => {
     if (
       window.innerHeight + document.documentElement.scrollTop >=
-      document.documentElement.scrollHeight - 100
+      document.documentElement.scrollHeight - 150
     ) {
-      if (!loading && !isEnd) {
+      if (!loading && !isEnd && !fetchingRef.current) {
         setPage((prev) => prev + 1);
       }
     }
@@ -64,7 +83,7 @@ const useAnimeData = (mode = "popular", columnCount = 5) => {
     return [...animeList, ...Array.from({ length: placeholdersNeeded }, () => ({ placeholder: true }))];
   };
 
-  return { animeList: getPaddedList(), loading, isEnd, handleScroll };
+  return { animeList: getPaddedList(), loading, isEnd, error, handleScroll };
 };
 
 export default useAnimeData;

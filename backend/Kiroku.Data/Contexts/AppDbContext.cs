@@ -47,6 +47,47 @@ namespace Kiroku.Data.Contexts
         {
             base.OnModelCreating(modelBuilder);
 
+            // Enable PostgreSQL pg_trgm extension for fuzzy & substring search
+            modelBuilder.HasPostgresExtension("pg_trgm");
+
+            // ==========================================
+            // PERFORMANCE INDEXES
+            // ==========================================
+
+            // Anime indexes: Lookups, rankings, sorting, and full-text trigram GIN indexes
+            modelBuilder.Entity<Anime>().HasIndex(a => a.MalId).IsUnique();
+            modelBuilder.Entity<Anime>().HasIndex(a => a.Popularity);
+            modelBuilder.Entity<Anime>().HasIndex(a => a.Score);
+            modelBuilder.Entity<Anime>().HasIndex(a => a.Status);
+            modelBuilder.Entity<Anime>().HasIndex(a => a.Favorites);
+            modelBuilder.Entity<Anime>().HasIndex(a => new { a.Approved, a.Popularity });
+            modelBuilder.Entity<Anime>().HasIndex(a => a.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+            modelBuilder.Entity<Anime>().HasIndex(a => a.TitleEnglish).HasMethod("gin").HasOperators("gin_trgm_ops");
+
+            // User indexes: Fast authentication and profile lookups
+            modelBuilder.Entity<User>().HasIndex(u => u.Username);
+            modelBuilder.Entity<User>().HasIndex(u => u.Email);
+
+            // UserAnimeList: Instant list filtering by (UserId, Status)
+            modelBuilder.Entity<UserAnimeList>().HasIndex(ual => new { ual.UserId, ual.Status });
+
+            // ThemeEntry: Instant opening/ending lookup per anime
+            modelBuilder.Entity<ThemeEntry>().HasIndex(te => new { te.AnimeId, te.Category });
+
+            // AnimeCharacter: Composite index for fast joins
+            modelBuilder.Entity<AnimeCharacter>().HasIndex(ac => new { ac.AnimeId, ac.CharacterId });
+
+            // Genre: Tag queries and MalId lookups
+            modelBuilder.Entity<Genre>().HasIndex(g => new { g.MalId, g.Type });
+            modelBuilder.Entity<Genre>().HasIndex(g => g.Type);
+
+            // Character & Person: MalId lookup and Trigram GIN search on Name
+            modelBuilder.Entity<Character>().HasIndex(c => c.MalId).IsUnique();
+            modelBuilder.Entity<Character>().HasIndex(c => c.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+
+            modelBuilder.Entity<Person>().HasIndex(p => p.MalId).IsUnique();
+            modelBuilder.Entity<Person>().HasIndex(p => p.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+
             // Anime <-> Titles (one-to-many)
             modelBuilder.Entity<Anime>()
                 .HasMany(a => a.Titles)
